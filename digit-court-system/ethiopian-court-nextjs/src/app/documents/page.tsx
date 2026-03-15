@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import ThemeToggle from '@/components/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '@/components/Modal';
 import { 
@@ -34,7 +35,8 @@ import {
   Users,
   BarChart3,
   MessageSquare,
-  User
+  User,
+  Save
 } from 'lucide-react';
 
 interface Document {
@@ -78,37 +80,64 @@ export default function Documents() {
     }
 
     const fetchDocs = async () => {
-       try {
-          const response = await fetch('http://localhost:5173/api/cases', {
-               headers: { 'Authorization': `Bearer ${token}` }
-          });
-          const data = await response.json();
-          if (data.success) {
-             const allDocs: Document[] = [];
-             data.data.forEach((c: any) => {
-                c.documents?.forEach((d: any) => {
-                   allDocs.push({
-                      id: d.id,
-                      caseId: c.id, // Internal ID for API calls
-                      title: d.name,
-                      type: 'pdf',
-                      category: d.type.toLowerCase().replace(' ', '_'),
-                      status: d.signed ? 'signed' : 'pending',
-                      uploadDate: d.uploadedAt?.split('T')[0] || c.filingDate,
-                      uploadedBy: d.uploader || 'Judicial Clerk',
-                      size: '1.2 MB',
-                      caseNumber: c.caseNumber,
-                      tags: [c.type.toLowerCase()],
-                      isSigned: d.signed,
-                      isConfidential: false
-                   });
-                });
-             });
-             setDocuments(allDocs);
-          }
-       } catch (err) {
-          console.error('Failed to fetch docs:', err);
-       }
+       const request = indexedDB.open('CourtRecordsDB', 2);
+       request.onupgradeneeded = (e: any) => {
+         const db = e.target.result;
+         if (!db.objectStoreNames.contains('recordings')) db.createObjectStore('recordings', { keyPath: 'id' });
+         if (!db.objectStoreNames.contains('cases')) db.createObjectStore('cases', { keyPath: 'id' });
+         if (!db.objectStoreNames.contains('documents')) db.createObjectStore('documents', { keyPath: 'id' });
+       };
+       
+       request.onsuccess = async (e: any) => {
+          const db = e.target.result;
+          const transaction = db.transaction(['documents'], 'readonly');
+          const store = transaction.objectStore('documents');
+          const getAllRequest = store.getAll();
+          
+          getAllRequest.onsuccess = async () => {
+             if (getAllRequest.result && getAllRequest.result.length > 0) {
+                 setDocuments(getAllRequest.result.sort((a: any, b: any) => parseInt(b.timestamp || '0') - parseInt(a.timestamp || '0')));
+             } else {
+                 try {
+                    const response = await fetch('http://localhost:5173/api/cases', {
+                         headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                       const allDocs: Document[] = [];
+                       data.data.forEach((c: any) => {
+                          c.documents?.forEach((d: any) => {
+                             allDocs.push({
+                                id: d.id,
+                                caseId: c.id,
+                                title: d.name,
+                                type: 'pdf',
+                                category: d.type.toLowerCase().replace(' ', '_') as any,
+                                status: d.signed ? 'signed' : 'pending',
+                                uploadDate: d.uploadedAt?.split('T')[0] || c.filingDate,
+                                uploadedBy: d.uploader || 'Judicial Clerk',
+                                size: '1.2 MB',
+                                caseNumber: c.caseNumber,
+                                tags: [c.type.toLowerCase()],
+                                isSigned: d.signed,
+                                isConfidential: false,
+                                ...({ timestamp: Date.now() } as any)
+                             });
+                          });
+                       });
+                       
+                       const writeTx = db.transaction(['documents'], 'readwrite');
+                       const writeStore = writeTx.objectStore('documents');
+                       allDocs.forEach((d: any) => writeStore.put(d));
+                       
+                       setDocuments(allDocs);
+                    }
+                 } catch (err) {
+                    console.error('Failed to fetch docs:', err);
+                 }
+             }
+          };
+       };
     };
 
     if (token) fetchDocs();
@@ -151,12 +180,46 @@ export default function Documents() {
   };
 
   const handleUpload = () => {
-    setModalConfig({
-      isOpen: true,
-      title: 'Evidence Upload Protocol',
-      message: 'Secure channel established. Please select the jurisdictional files for case association and neural encryption.',
-      type: 'info'
-    });
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '*/*';
+    input.onchange = (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const newDoc: Document = {
+         id: `DOC-${Date.now()}`,
+         title: file.name,
+         type: file.name.endsWith('.pdf') ? 'pdf' : file.name.endsWith('.png') || file.name.endsWith('.jpg') ? 'image' : 'doc',
+         category: 'evidence',
+         status: 'pending',
+         uploadDate: new Date().toISOString().split('T')[0],
+         uploadedBy: currentUser,
+         size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+         caseNumber: 'NEW-UPLOAD',
+         tags: ['evidence'],
+         isSigned: false,
+         isConfidential: false
+      };
+
+      const request = indexedDB.open('CourtRecordsDB', 2);
+      request.onsuccess = (ev: any) => {
+         const db = ev.target.result;
+         const tx = db.transaction(['documents'], 'readwrite');
+         const store = tx.objectStore('documents');
+         store.add({...newDoc, timestamp: Date.now()});
+         tx.oncomplete = () => {
+            setDocuments(prev => [{...newDoc, timestamp: Date.now()} as any, ...prev]);
+            setModalConfig({
+              isOpen: true,
+              title: 'Evidence Upload Protocol',
+              message: `Encrypted artifact '${file.name}' has been securely registered to the jurisdictional sandbox.`,
+              type: 'success'
+            });
+         };
+      };
+    };
+    input.click();
   };
 
   const handleLogout = () => {
@@ -194,6 +257,7 @@ export default function Documents() {
             </div>
             
             <div className="flex items-center gap-6">
+              <ThemeToggle />
               <Link href="/notifications" className="relative w-12 h-12 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center transition-all">
                 <Bell size={20} className="text-white" />
                 <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-950"></span>
@@ -226,7 +290,7 @@ export default function Documents() {
       </header>
 
       {/* Navigation */}
-      <nav className="nav-container bg-[#14532d] overflow-x-auto shadow-md">
+      <nav className="nav-container sticky top-20 z-[90] bg-[#14532d] overflow-x-auto shadow-md">
         <div className="container mx-auto flex items-center h-16 px-6 gap-2">
           {[
             { label: 'Dashboard', icon: <LayoutDashboard size={18} />, href: '/' },
@@ -237,6 +301,7 @@ export default function Documents() {
             { label: 'Users', icon: <Users size={18} />, href: '/users' },
             { label: 'Reports', icon: <BarChart3 size={18} />, href: '/reports' },
             { label: 'Messages', icon: <MessageSquare size={18} />, href: '/communication' },
+            { label: 'Archives', icon: <Save size={18} />, href: '/archives' },
             { label: 'Settings', icon: <Settings size={18} />, href: '/settings' },
           ].map((item) => (
             <Link 

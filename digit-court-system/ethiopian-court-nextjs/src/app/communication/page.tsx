@@ -2,33 +2,49 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import ThemeToggle from '@/components/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
-import Modal from '@/components/Modal';
-import { 
-  MessageSquare, 
-  Search, 
-  User, 
-  Settings, 
-  LogOut, 
-  Bell, 
-  Send, 
-  Paperclip, 
-  Image as ImageIcon,
+import {
+  MessageSquare,
+  Search,
+  User,
+  Settings,
+  LogOut,
+  Bell,
+  Send,
+  Paperclip,
   MoreVertical,
-  ChevronLeft,
-  Phone,
-  Video,
-  Info,
-  Layers,
   FileText,
-  Clock,
   ShieldCheck,
   Gavel,
   LayoutDashboard,
   Briefcase,
   Users,
-  BarChart3
+  BarChart3,
+  Check,
+  CheckCheck,
+  Lock,
+  Download,
+  Video,
+  Plus,
+  Save,
+  X,
+  Circle,
+  Image as ImageIcon,
+  File,
+  Phone,
+  ChevronDown,
 } from 'lucide-react';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Attachment {
+  id: string;
+  name: string;
+  size: string;
+  type: string;
+  url: string;
+}
 
 interface Message {
   id: string;
@@ -36,8 +52,9 @@ interface Message {
   senderName: string;
   content: string;
   timestamp: string;
-  roomId: string;
-  isSelf?: boolean;
+  isSelf: boolean;
+  status: 'sent' | 'delivered' | 'read';
+  attachments: Attachment[];
 }
 
 interface Contact {
@@ -46,87 +63,103 @@ interface Contact {
   role: string;
   status: 'online' | 'offline' | 'away';
   avatar: string;
-  lastMessage?: string;
-  unreadCount?: number;
-  lastSeen?: string;
+  lastMessage: string;
+  lastSeen: string;
+  unreadCount: number;
 }
 
+// ─── Mock contacts ─────────────────────────────────────────────────────────────
+const MOCK_CONTACTS: Contact[] = [
+  { id: 'c1', name: 'Hon. Alem Tesfaye', role: 'Presiding Judge', status: 'online', avatar: '👨‍⚖️', lastMessage: 'Case CR-2026-044 hearing rescheduled.', lastSeen: 'Active Now', unreadCount: 2 },
+  { id: 'c2', name: 'Adv. Meron Haile', role: 'Defense Counsel', status: 'online', avatar: '👩‍💼', lastMessage: 'Submitted amended motion.', lastSeen: 'Active Now', unreadCount: 0 },
+  { id: 'c3', name: 'Ato Biruk Tadesse', role: 'Court Clerk', status: 'away', avatar: '🧑‍💼', lastMessage: 'Docket update for March 17.', lastSeen: '12 min ago', unreadCount: 1 },
+  { id: 'c4', name: 'Adv. Sara Bekele', role: 'Prosecutor', status: 'offline', avatar: '👩‍⚖️', lastMessage: 'Evidence exhibit filed.', lastSeen: '3h ago', unreadCount: 0 },
+  { id: 'c5', name: 'Dr. Yonas Girma', role: 'Expert Witness', status: 'offline', avatar: '👨‍🔬', lastMessage: 'Forensic report ready.', lastSeen: 'Yesterday', unreadCount: 0 },
+];
+
+const MOCK_MESSAGES: Record<string, Message[]> = {
+  c1: [
+    { id: 'm1', senderId: 'c1', senderName: 'Hon. Alem Tesfaye', content: 'Good morning. The preliminary hearing for Case CR-2026-044 has been moved to March 20th.', timestamp: '09:14', isSelf: false, status: 'read', attachments: [] },
+    { id: 'm2', senderId: 'me', senderName: 'Me', content: 'Understood, Your Honour. We will notify all parties immediately.', timestamp: '09:16', isSelf: true, status: 'read', attachments: [] },
+    { id: 'm3', senderId: 'c1', senderName: 'Hon. Alem Tesfaye', content: 'Please ensure the amended docket notice reaches the defense by end of day.', timestamp: '09:17', isSelf: false, status: 'read', attachments: [] },
+    { id: 'm4', senderId: 'me', senderName: 'Me', content: 'Confirmed. I\'m attaching the rescheduled hearing order now.', timestamp: '09:19', isSelf: true, status: 'delivered', attachments: [{ id: 'a1', name: 'Hearing_Order_CR2026-044.pdf', size: '142 KB', type: 'pdf', url: '#' }] },
+  ],
+  c2: [
+    { id: 'm5', senderId: 'c2', senderName: 'Adv. Meron Haile', content: 'I have submitted the amended motion to suppress. Please confirm receipt.', timestamp: '10:02', isSelf: false, status: 'read', attachments: [{ id: 'a2', name: 'Motion_to_Suppress_Amended.docx', size: '88 KB', type: 'doc', url: '#' }] },
+    { id: 'm6', senderId: 'me', senderName: 'Me', content: 'Received. Forwarded to the presiding judge\'s clerk for review.', timestamp: '10:10', isSelf: true, status: 'read', attachments: [] },
+  ],
+  c3: [
+    { id: 'm7', senderId: 'c3', senderName: 'Ato Biruk Tadesse', content: 'The March 17th docket has been updated. 6 cases on schedule.', timestamp: '08:30', isSelf: false, status: 'read', attachments: [] },
+  ],
+};
+
+// ─── Helper ─────────────────────────────────────────────────────────────────
+function fileIcon(type: string) {
+  if (type.startsWith('image')) return <ImageIcon size={16} className="text-blue-400" />;
+  if (type === 'pdf') return <FileText size={16} className="text-red-400" />;
+  return <File size={16} className="text-emerald-400" />;
+}
+
+function statusIcon(status: 'sent' | 'delivered' | 'read') {
+  if (status === 'read') return <CheckCheck size={14} className="text-emerald-400" />;
+  if (status === 'delivered') return <CheckCheck size={14} className="text-slate-400" />;
+  return <Check size={14} className="text-slate-400" />;
+}
+
+function statusDot(status: 'online' | 'offline' | 'away') {
+  const colors: Record<string, string> = {
+    online: 'bg-emerald-400',
+    away: 'bg-amber-400',
+    offline: 'bg-slate-400',
+  };
+  return <span className={`w-2.5 h-2.5 rounded-full ${colors[status]} ring-2 ring-[#0a0f0d] shrink-0`} />;
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
 export default function Communication() {
-  const [currentUser, setCurrentUser] = useState('Loading...');
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(MOCK_CONTACTS[0]);
+  const [contacts, setContacts] = useState<Contact[]>(MOCK_CONTACTS);
+  const [messages, setMessages] = useState<Record<string, Message[]>>(MOCK_MESSAGES);
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [mounted, setMounted] = useState(false);
-  const [modalConfig, setModalConfig] = useState<{isOpen: boolean, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}>({
-    isOpen: false,
-    title: '',
-    message: '',
-    type: 'info'
-  });
+  const [pendingFiles, setPendingFiles] = useState<Attachment[]>([]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
     const userStr = localStorage.getItem('courtUser');
-    const token = localStorage.getItem('courtToken');
-    
     if (userStr) {
-      const userData = JSON.parse(userStr);
-      setCurrentUser(userData.name || 'User');
+      try { setCurrentUser(JSON.parse(userStr)); } catch { setCurrentUser({ name: 'Court User' }); }
+    } else {
+      setCurrentUser({ name: 'Court User' });
     }
 
-    const fetchContacts = async () => {
-      try {
-        const response = await fetch('http://localhost:5173/api/users', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await response.json();
-        if (data.success) {
-          setContacts(data.data.map((u: any) => ({
-            id: u.id,
-            name: u.name,
-            role: u.roles?.[0] || 'Member',
-            status: u.isActive ? 'online' : 'offline',
-            avatar: u.roles?.[0] === 'judge' ? '👨‍⚖️' : '👤',
-            lastMessage: 'Digital identity verified.',
-            lastSeen: 'Active Now'
-          })));
-        }
-      } catch (err) {
-        console.error('Failed to sync contacts:', err);
-      }
-    };
-
-    const fetchMessages = async () => {
-      try {
-        const response = await fetch('http://localhost:5173/api/messages', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await response.json();
-        if (data.success) {
-          setMessages(data.data.map((m: any) => ({
-             id: m.id,
-             senderId: m.senderId,
-             senderName: m.senderId === 'me' ? 'Me' : 'Participant',
-             content: m.content,
-             timestamp: m.timestamp,
-             roomId: m.receiverId,
-             isSelf: m.senderId === (JSON.parse(userStr || '{}').id)
-          })));
-        }
-      } catch (err) {
-        console.error('Failed to sync messages:', err);
-      }
-    };
-
+    // Try to load real contacts from API
+    const token = localStorage.getItem('courtToken');
     if (token) {
-      fetchContacts();
-      fetchMessages();
-      const interval = setInterval(fetchMessages, 5000); 
-      return () => clearInterval(interval);
+      fetch('http://localhost:5173/api/users', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.data?.length) {
+            const real: Contact[] = data.data.map((u: any) => ({
+              id: u.id,
+              name: u.name,
+              role: u.roles?.[0] || 'Member',
+              status: u.isActive ? 'online' : 'offline',
+              avatar: u.roles?.[0] === 'judge' ? '👨‍⚖️' : '👤',
+              lastMessage: 'Click to start a secure conversation.',
+              lastSeen: u.isActive ? 'Active Now' : 'Recently',
+              unreadCount: 0,
+            }));
+            setContacts([...MOCK_CONTACTS, ...real]);
+          }
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -134,390 +167,361 @@ export default function Communication() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, selectedContact]);
 
+  // Mark messages as read when opening a conversation
+  useEffect(() => {
+    if (!selectedContact) return;
+    setContacts(prev => prev.map(c => c.id === selectedContact.id ? { ...c, unreadCount: 0 } : c));
+    // Mark all received messages in this thread as read
+    setMessages(prev => {
+      const thread = prev[selectedContact.id] || [];
+      return {
+        ...prev,
+        [selectedContact.id]: thread.map(m => (!m.isSelf && m.status !== 'read') ? { ...m, status: 'read' as const } : m),
+      };
+    });
+  }, [selectedContact]);
+
   const handleLogout = () => {
     localStorage.removeItem('courtToken');
     localStorage.removeItem('courtUser');
     window.location.href = '/login';
   };
 
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedContact) return;
-    const token = localStorage.getItem('courtToken');
-    
-    try {
-      const response = await fetch('http://localhost:5173/api/messages', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          receiverId: selectedContact.id,
-          content: newMessage
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setMessages([...messages, {
-          id: data.data.id,
-          senderId: 'currentUser',
-          senderName: 'Me',
-          content: newMessage,
-          timestamp: new Date().toISOString(),
-          roomId: selectedContact.id,
-          isSelf: true
-        }]);
-        setNewMessage('');
-      }
-    } catch (err) {
-      setModalConfig({
-        isOpen: true,
-        title: 'Transmission failure',
-        message: 'The neural messaging uplink was interrupted by a network synchronization conflict. The broadcast was not cached.',
-        type: 'error'
-      });
-    }
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const attachments: Attachment[] = files.map(f => ({
+      id: `att-${Date.now()}-${Math.random()}`,
+      name: f.name,
+      size: f.size > 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)} MB` : `${(f.size / 1024).toFixed(0)} KB`,
+      type: f.type.startsWith('image') ? 'image' : f.name.endsWith('.pdf') ? 'pdf' : 'doc',
+      url: URL.createObjectURL(f),
+    }));
+    setPendingFiles(prev => [...prev, ...attachments]);
+    e.target.value = '';
   };
 
-  const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const sendMessage = () => {
+    if (!newMessage.trim() && pendingFiles.length === 0) return;
+    if (!selectedContact) return;
+
+    const msg: Message = {
+      id: `msg-${Date.now()}`,
+      senderId: 'me',
+      senderName: currentUser?.name || 'Me',
+      content: newMessage.trim(),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isSelf: true,
+      status: 'sent',
+      attachments: pendingFiles,
+    };
+
+    setMessages(prev => ({
+      ...prev,
+      [selectedContact.id]: [...(prev[selectedContact.id] || []), msg],
+    }));
+    setContacts(prev => prev.map(c => c.id === selectedContact.id ? { ...c, lastMessage: newMessage.trim() || 'Sent a file' } : c));
+    setNewMessage('');
+    setPendingFiles([]);
+
+    // Simulate delivery → read receipts
+    setTimeout(() => {
+      setMessages(prev => ({
+        ...prev,
+        [selectedContact.id]: (prev[selectedContact.id] || []).map(m => m.id === msg.id ? { ...m, status: 'delivered' as const } : m),
+      }));
+    }, 1000);
+    setTimeout(() => {
+      setMessages(prev => ({
+        ...prev,
+        [selectedContact.id]: (prev[selectedContact.id] || []).map(m => m.id === msg.id ? { ...m, status: 'read' as const } : m),
+      }));
+    }, 2500);
+  };
+
+  const filteredContacts = contacts.filter(c =>
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.role.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const currentThread = selectedContact ? (messages[selectedContact.id] || []) : [];
 
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#f8f6f3] flex flex-col h-screen overflow-hidden relative">
-      {/* Header */}
-      {/* Header */}
-      <header className="header sticky top-0 z-[100] bg-emerald-950 border-b border-emerald-900 shadow-xl overflow-visible shrink-0">
-        <div className="container mx-auto">
-          <div className="header-container flex items-center justify-between h-20 px-6">
-            <Link href="/" className="flex items-center gap-4 group">
-              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-lg ring-2 ring-emerald-400 group-hover:rotate-12 transition-all">⚖️</div>
-              <div className="text-white">
-                <div className="text-lg font-black tracking-tight leading-none mb-1">FDRE COURT SYSTEM</div>
-                <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.2em] opacity-80">Digital Administration</div>
-              </div>
-            </Link>
-            
-            <div className="hidden lg:flex items-center gap-2 bg-white/5 border border-white/10 px-6 py-3 rounded-2xl w-96 backdrop-blur-md">
-              <Search size={18} className="text-white/40" />
-              <input type="text" placeholder="Search operational database..." className="bg-transparent border-none outline-none text-white text-sm w-full placeholder:text-white/20 font-medium" />
-            </div>
-            
-            <div className="flex items-center gap-6">
-              <Link href="/notifications" className="relative w-12 h-12 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center transition-all">
-                <Bell size={20} className="text-white" />
-                <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-950"></span>
-              </Link>
-              
-              <div className="relative">
-                <button 
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-3 pl-2 pr-4 py-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 transition-all"
-                >
-                  <div className="w-8 h-8 rounded-full bg-emerald-400 flex items-center justify-center text-emerald-950 font-black">{currentUser[0]}</div>
-                  <span className="text-white font-bold text-sm hidden md:block">{currentUser}</span>
-                </button>
-                <AnimatePresence>
-                  {userMenuOpen && (
-                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="absolute right-0 top-full mt-3 w-64 bg-white rounded-3xl shadow-2xl border border-emerald-50 overflow-hidden z-[200]">
-                      <div className="p-4 bg-emerald-50/50 border-b border-emerald-100 font-bold text-xs uppercase text-emerald-600">Administrative Profile</div>
-                      <div className="p-2">
-                        <Link href="/profile" className="flex items-center gap-3 p-3 rounded-xl text-emerald-950 hover:bg-emerald-50 transition-colors"><User size={18} /> <span className="text-sm font-bold">Dossier</span></Link>
-                        <Link href="/settings" className="flex items-center gap-3 p-3 rounded-xl text-emerald-950 hover:bg-emerald-50 transition-colors"><Settings size={18} /> <span className="text-sm font-bold">Settings</span></Link>
-                        <button onClick={handleLogout} className="flex items-center gap-3 w-full p-3 rounded-xl text-red-600 hover:bg-red-50 transition-colors"><LogOut size={18} /> <span className="text-sm font-black uppercase tracking-widest text-left">Sign Out</span></button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#0c1410] text-white font-sans flex flex-col">
+
+      {/* ── Sticky Header ─────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-[100] h-20 bg-[#0c1410]/95 border-b border-emerald-900/30 backdrop-blur-xl flex items-center justify-between px-8 shrink-0">
+        <Link href="/" className="flex items-center gap-4 group">
+          <div className="w-11 h-11 bg-white rounded-2xl flex items-center justify-center text-xl shadow-lg group-hover:rotate-12 transition-all">⚖️</div>
+          <div>
+            <div className="text-base font-black tracking-tight leading-none mb-0.5">FDRE COURT SYSTEM</div>
+            <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.2em] opacity-70">Secure Communications</div>
+          </div>
+        </Link>
+
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+            <Lock size={13} className="text-emerald-400" />
+            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">End-to-End Encrypted</span>
+          </div>
+          <ThemeToggle />
+          <Link href="/notifications" className="relative w-10 h-10 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-center transition-all">
+            <Bell size={18} className="text-white" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-emerald-400 rounded-full border-2 border-[#0c1410]" />
+          </Link>
+          <div className="relative">
+            <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 transition-all">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-emerald-950 font-black text-sm">{(currentUser?.name || 'U')[0]}</div>
+              <span className="text-sm font-bold hidden md:block">{currentUser?.name || 'Court User'}</span>
+              <ChevronDown size={14} className="text-white/40" />
+            </button>
+            <AnimatePresence>
+              {userMenuOpen && (
+                <motion.div initial={{ opacity: 0, y: 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.96 }} className="absolute right-0 top-full mt-2 w-56 bg-[#1a2820] border border-emerald-900/50 rounded-2xl shadow-2xl overflow-hidden z-[200]">
+                  <div className="p-3 border-b border-white/5">
+                    <p className="text-[10px] font-black text-emerald-500 uppercase">Judicial Profile</p>
+                    <p className="text-sm font-bold text-white truncate">{currentUser?.name || 'Court User'}</p>
+                  </div>
+                  <div className="p-2">
+                    <Link href="/profile" className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/5 text-sm font-bold transition-colors"><User size={16} className="text-emerald-400" /> Dossier</Link>
+                    <Link href="/settings" className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/5 text-sm font-bold transition-colors"><Settings size={16} className="text-emerald-400" /> Settings</Link>
+                    <button onClick={handleLogout} className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-red-500/10 text-red-400 text-sm font-black text-left transition-colors"><LogOut size={16} /> Sign Out</button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </header>
 
-      {/* Navigation */}
-      <nav className="nav-container bg-[#14532d] overflow-x-auto shadow-md shrink-0">
-        <div className="container mx-auto flex items-center h-16 px-6 gap-2">
+      {/* ── Global Nav ────────────────────────────────────────────────────── */}
+      <nav className="sticky top-20 z-[90] bg-[#14532d] overflow-x-auto shadow-md shrink-0">
+        <div className="flex items-center h-14 px-6 gap-1.5 min-w-max">
           {[
-            { label: 'Dashboard', icon: <LayoutDashboard size={18} />, href: '/' },
-            { label: 'Cases', icon: <Briefcase size={18} />, href: '/cases' },
-            { label: 'Hearings', icon: <Gavel size={18} />, href: '/hearings' },
-            { label: 'Documents', icon: <FileText size={18} />, href: '/documents' },
-            { label: 'Virtual Hearing', icon: <Video size={18} />, href: '/virtual-hearing' },
-            { label: 'Users', icon: <Users size={18} />, href: '/users' },
-            { label: 'Reports', icon: <BarChart3 size={18} />, href: '/reports' },
-            { label: 'Messages', icon: <MessageSquare size={18} />, href: '/communication', active: true },
-            { label: 'Settings', icon: <Settings size={18} />, href: '/settings' },
-          ].map((item) => (
-            <Link 
-              key={item.label} 
-              href={item.href} 
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                item.active ? 'bg-emerald-400 text-emerald-950 shadow-lg' : 'text-emerald-50 hover:bg-emerald-800'
-              }`}
-            >
+            { label: 'Dashboard', icon: <LayoutDashboard size={16} />, href: '/' },
+            { label: 'Cases', icon: <Briefcase size={16} />, href: '/cases' },
+            { label: 'Hearings', icon: <Gavel size={16} />, href: '/hearings' },
+            { label: 'Documents', icon: <FileText size={16} />, href: '/documents' },
+            { label: 'Virtual Hearing', icon: <Video size={16} />, href: '/virtual-hearing' },
+            { label: 'Users', icon: <Users size={16} />, href: '/users' },
+            { label: 'Reports', icon: <BarChart3 size={16} />, href: '/reports' },
+            { label: 'Messages', icon: <MessageSquare size={16} />, href: '/communication', active: true },
+            { label: 'Archives', icon: <Save size={16} />, href: '/archives' },
+            { label: 'Settings', icon: <Settings size={16} />, href: '/settings' },
+          ].map((item: any) => (
+            <Link key={item.label} href={item.href} className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${item.active ? 'bg-emerald-400 text-emerald-950 shadow-lg' : 'text-emerald-50 hover:bg-emerald-800'}`}>
               {item.icon} {item.label}
             </Link>
           ))}
         </div>
       </nav>
 
-      {/* Main Layout */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Sidebar Contacts */}
-        <div className="w-80 md:w-96 bg-white border-r border-gray-100 flex flex-col shrink-0">
-           <div className="p-6 border-b border-gray-50 bg-gray-50/50">
-              <div className="flex items-center justify-between mb-4">
-                 <h2 className="text-xl font-black text-gray-900 tracking-tight">Active Channels</h2>
-                 <button className="p-2 bg-emerald-950 text-emerald-400 rounded-xl hover:bg-emerald-900 transition-colors">
-                    <MessageSquare size={16} />
-                 </button>
-              </div>
-              <div className="relative group">
-                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-500 transition-colors" size={16} />
-                 <input 
-                   type="text" 
-                   placeholder="Search secure channels..."
-                   value={searchTerm}
-                   onChange={(e) => setSearchTerm(e.target.value)}
-                   className="w-full pl-11 pr-4 py-3 bg-white border-2 border-gray-100 focus:border-emerald-500 outline-none rounded-xl text-xs font-bold text-gray-800 transition-all shadow-sm"
-                 />
-              </div>
-           </div>
+      {/* ── Main Layout: Sidebar + Chat ───────────────────────────────────── */}
+      <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 8.5rem)' }}>
 
-           <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {filteredContacts.map(contact => (
-                <button
-                  key={contact.id}
-                  onClick={() => setSelectedContact(contact)}
-                  className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all relative group ${
-                    selectedContact?.id === contact.id ? 'bg-emerald-950 text-white shadow-xl shadow-emerald-950/20' : 'hover:bg-emerald-50 text-gray-600'
-                  }`}
-                >
-                  <div className="relative shrink-0">
-                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-lg ${selectedContact?.id === contact.id ? 'bg-emerald-900' : 'bg-gray-100 group-hover:bg-white'} transition-colors`}>
-                        {contact.avatar}
-                     </div>
-                     <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${
-                       contact.status === 'online' ? 'bg-emerald-400' : contact.status === 'away' ? 'bg-amber-400' : 'bg-gray-300'
-                     }`}></span>
-                  </div>
-                  <div className="flex-1 text-left min-w-0">
-                     <div className="flex justify-between items-center mb-0.5">
-                        <span className={`font-black text-sm truncate ${selectedContact?.id === contact.id ? 'text-white' : 'text-gray-900'}`}>{contact.name}</span>
-                        {contact.unreadCount && contact.unreadCount > 0 && <span className="px-1.5 py-0.5 bg-emerald-400 text-emerald-950 text-[8px] font-black rounded-md">{contact.unreadCount}</span>}
-                     </div>
-                     <p className={`text-[10px] truncate font-bold uppercase tracking-tight ${selectedContact?.id === contact.id ? 'text-emerald-200' : 'text-gray-400'}`}>
-                        {contact.role}
-                     </p>
-                  </div>
-                  {selectedContact?.id === contact.id && (
-                    <motion.div layoutId="active-indicator" className="absolute left-0 w-1.5 h-8 bg-emerald-400 rounded-r-full shadow-[0_0_15px_rgba(52,211,153,0.5)]"></motion.div>
-                  )}
-                </button>
-              ))}
-           </div>
-        </div>
+        {/* Contacts Sidebar */}
+        <aside className="w-80 xl:w-96 flex flex-col border-r border-white/5 bg-[#0f1a14] shrink-0">
+          {/* Sidebar Header */}
+          <div className="p-5 border-b border-white/5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-black tracking-tight">Secure Channels</h2>
+              <button className="w-9 h-9 bg-emerald-500 hover:bg-emerald-400 rounded-xl flex items-center justify-center text-emerald-950 shadow-lg transition-all hover:scale-105">
+                <Plus size={18} />
+              </button>
+            </div>
+            <div className="relative">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+              <input
+                type="text"
+                placeholder="Search participants..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm font-medium placeholder:text-white/20 outline-none focus:border-emerald-500 transition-all"
+              />
+            </div>
+          </div>
 
-        {/* Chat Canvas */}
-        <div className="flex-1 flex flex-col bg-[#fdfcfb] relative overflow-hidden">
-           {selectedContact ? (
-             <>
-               {/* Chat Header */}
-               <div className="h-20 border-b border-gray-100 bg-white px-8 flex items-center justify-between shrink-0 shadow-sm relative z-10">
-                  <div className="flex items-center gap-4">
-                     <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center shadow-inner text-xl">
-                        {selectedContact.avatar}
-                     </div>
-                     <div>
-                        <h3 className="font-black text-gray-900 tracking-tight leading-none mb-1">{selectedContact.name}</h3>
-                        <div className="flex items-center gap-2">
-                           <div className={`w-1.5 h-1.5 rounded-full ${selectedContact.status === 'online' ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
-                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{selectedContact.lastSeen}</span>
+          {/* Contact List */}
+          <div className="flex-1 overflow-y-auto scrollbar-hide py-2">
+            {filteredContacts.map(contact => (
+              <button
+                key={contact.id}
+                onClick={() => setSelectedContact(contact)}
+                className={`w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-white/5 transition-all text-left ${selectedContact?.id === contact.id ? 'bg-emerald-500/10 border-r-2 border-emerald-400' : ''}`}
+              >
+                <div className="relative shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-lg">{contact.avatar}</div>
+                  <div className="absolute -bottom-0.5 -right-0.5">{statusDot(contact.status)}</div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="font-bold text-sm truncate">{contact.name}</span>
+                    {contact.unreadCount > 0 && (
+                      <span className="ml-2 shrink-0 min-w-[18px] h-4.5 bg-emerald-500 text-emerald-950 text-[10px] font-black rounded-full flex items-center justify-center px-1.5">
+                        {contact.unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-1">{contact.role}</div>
+                  <p className="text-xs text-white/30 truncate">{contact.lastMessage}</p>
+                </div>
+              </button>
+            ))}
+            {filteredContacts.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                <MessageSquare size={32} className="text-white/10 mb-3" />
+                <p className="text-xs font-bold text-white/30">No participants found</p>
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar Footer */}
+          <div className="p-4 border-t border-white/5">
+            <div className="flex items-center gap-2.5 px-3 py-2 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
+              <ShieldCheck size={14} className="text-emerald-400 shrink-0" />
+              <p className="text-[10px] font-bold text-emerald-400/70 leading-relaxed">All messages are encrypted. Only authorized court participants may communicate.</p>
+            </div>
+          </div>
+        </aside>
+
+        {/* Chat Panel */}
+        {selectedContact ? (
+          <div className="flex-1 flex flex-col min-w-0">
+
+            {/* Chat Header */}
+            <div className="h-16 px-6 flex items-center justify-between border-b border-white/5 bg-[#0f1a14] shrink-0">
+              <div className="flex items-center gap-3.5">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-lg">{selectedContact.avatar}</div>
+                  <div className="absolute -bottom-0.5 -right-0.5">{statusDot(selectedContact.status)}</div>
+                </div>
+                <div>
+                  <p className="font-black text-sm leading-none mb-0.5">{selectedContact.name}</p>
+                  <p className="text-[10px] text-white/40 font-bold">{selectedContact.status === 'online' ? 'Active Now' : selectedContact.lastSeen} · {selectedContact.role}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button className="w-9 h-9 bg-white/5 hover:bg-white/10 rounded-xl flex items-center justify-center transition-all" title="Voice call"><Phone size={16} className="text-white/60" /></button>
+                <button className="w-9 h-9 bg-white/5 hover:bg-white/10 rounded-xl flex items-center justify-center transition-all" title="Video call"><Video size={16} className="text-white/60" /></button>
+                <button className="w-9 h-9 bg-white/5 hover:bg-white/10 rounded-xl flex items-center justify-center transition-all"><MoreVertical size={16} className="text-white/60" /></button>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 scrollbar-hide">
+              {currentThread.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <div className="w-16 h-16 bg-emerald-500/10 rounded-3xl flex items-center justify-center mb-4 text-3xl">{selectedContact.avatar}</div>
+                  <p className="font-black text-white/60 mb-1">{selectedContact.name}</p>
+                  <p className="text-xs text-white/30">Send the first secure message to this participant.</p>
+                </div>
+              )}
+
+              <AnimatePresence>
+                {currentThread.map((msg, idx) => {
+                  const showDateBadge = idx === 0;
+                  return (
+                    <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${msg.isSelf ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[70%] ${msg.isSelf ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                        {!msg.isSelf && (
+                          <span className="text-[10px] font-black text-emerald-400 pl-1">{msg.senderName}</span>
+                        )}
+                        <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.isSelf ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-white/8 border border-white/10 text-white/90 rounded-bl-sm'}`}>
+                          {msg.content && <p>{msg.content}</p>}
+                          {/* Attachments */}
+                          {msg.attachments.length > 0 && (
+                            <div className={`${msg.content ? 'mt-2' : ''} space-y-2`}>
+                              {msg.attachments.map(att => (
+                                <a key={att.id} href={att.url} download={att.name} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all group ${msg.isSelf ? 'bg-emerald-700 border-emerald-500/30 hover:bg-emerald-600' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
+                                  <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center shrink-0">
+                                    {fileIcon(att.type)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold truncate">{att.name}</p>
+                                    <p className="text-[10px] opacity-60">{att.size}</p>
+                                  </div>
+                                  <Download size={14} className="opacity-50 group-hover:opacity-100 shrink-0" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                     <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50 text-gray-600 hover:bg-emerald-950 hover:text-white transition-all shadow-sm border border-gray-100">
-                        <Phone size={18} />
-                     </button>
-                     <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50 text-gray-600 hover:bg-emerald-950 hover:text-white transition-all shadow-sm border border-gray-100">
-                        <Video size={18} />
-                     </button>
-                     <div className="w-px h-6 bg-gray-100 mx-2"></div>
-                     <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50 text-gray-600 hover:bg-emerald-950 hover:text-white transition-all shadow-sm border border-gray-100">
-                        <MoreVertical size={18} />
-                     </button>
-                  </div>
-               </div>
-
-               {/* Messages Stream */}
-               <div className="flex-1 overflow-y-auto p-10 space-y-8">
-                  <div className="flex justify-center mb-10">
-                     <span className="px-6 py-2 bg-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-full border border-gray-200/50 shadow-inner flex items-center gap-2">
-                        <ShieldCheck size={12} className="text-emerald-500" /> End-to-End Secure Channel Verified
-                     </span>
-                  </div>
-
-                  {messages.map((msg, idx) => (
-                    <motion.div
-                      key={msg.id}
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className={`flex ${msg.isSelf ? 'justify-end' : 'justify-start'}`}
-                    >
-                       <div className={`max-w-[70%] group ${msg.isSelf ? 'items-end' : 'items-start'} flex flex-col gap-2`}>
-                          <div className={`p-5 rounded-3xl shadow-xl text-sm font-medium leading-relaxed ${
-                            msg.isSelf 
-                            ? 'bg-emerald-950 text-emerald-50 rounded-tr-none shadow-emerald-950/20' 
-                            : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none shadow-gray-200/50'
-                          }`}>
-                             {msg.content}
-                          </div>
-                          <div className="flex items-center gap-2 px-2">
-                             <span className="text-[10px] font-black text-gray-300 uppercase tracking-tighter">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                             {msg.isSelf && <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></div>}
-                          </div>
-                       </div>
+                        <div className={`flex items-center gap-1.5 px-1 ${msg.isSelf ? 'justify-end' : 'justify-start'}`}>
+                          <span className="text-[10px] text-white/25">{msg.timestamp}</span>
+                          {msg.isSelf && (
+                            <span title={msg.status === 'read' ? 'Read' : msg.status === 'delivered' ? 'Delivered' : 'Sent'}>
+                              {statusIcon(msg.status)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </motion.div>
-                  ))}
-                  <div ref={messagesEndRef} />
-               </div>
+                  );
+                })}
+              </AnimatePresence>
+              <div ref={messagesEndRef} />
+            </div>
 
-               {/* Chat Input Bar */}
-               <div className="p-8 bg-white border-t border-gray-100 shrink-0 relative z-10 transition-all focus-within:shadow-2xl">
-                  <div className="max-w-4xl mx-auto flex items-center gap-4">
-                     <div className="flex gap-2">
-                        <button className="w-12 h-12 flex items-center justify-center rounded-2xl bg-gray-50 text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 transition-all">
-                           <Paperclip size={20} />
+            {/* Pending files preview */}
+            <AnimatePresence>
+              {pendingFiles.length > 0 && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-6 overflow-hidden">
+                  <div className="flex gap-2 py-3 flex-wrap border-t border-white/5">
+                    {pendingFiles.map(f => (
+                      <div key={f.id} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                        {fileIcon(f.type)}
+                        <span className="text-xs font-bold max-w-[120px] truncate">{f.name}</span>
+                        <button onClick={() => setPendingFiles(prev => prev.filter(p => p.id !== f.id))} className="ml-1 text-white/30 hover:text-red-400 transition-colors">
+                          <X size={13} />
                         </button>
-                        <button className="w-12 h-12 flex items-center justify-center rounded-2xl bg-gray-50 text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 transition-all">
-                           <ImageIcon size={20} />
-                        </button>
-                     </div>
-                     
-                     <div className="flex-1 relative">
-                        <input 
-                          type="text" 
-                          placeholder="Compose secure transmission..."
-                          value={newMessage}
-                          onChange={(e) => setNewMessage(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                          className="w-full py-5 px-8 bg-gray-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white outline-none rounded-3xl text-sm font-bold text-gray-800 transition-all shadow-inner"
-                        />
-                     </div>
-
-                     <button 
-                       onClick={sendMessage}
-                       disabled={!newMessage.trim()}
-                       className="w-14 h-14 bg-emerald-950 text-emerald-400 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-950/40 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:grayscale transition-all"
-                     >
-                        <Send size={24} />
-                     </button>
+                      </div>
+                    ))}
                   </div>
-               </div>
-             </>
-           ) : (
-             <div className="flex-1 flex flex-col items-center justify-center text-center p-20">
-                <div className="relative mb-10">
-                   <div className="w-40 h-40 bg-emerald-50 rounded-[3rem] rotate-12 flex items-center justify-center shadow-inner">
-                      <MessageSquare size={64} className="text-emerald-600 opacity-20 -rotate-12" />
-                   </div>
-                   <div className="absolute inset-0 flex items-center justify-center">
-                     <div className="w-32 h-32 bg-white/20 backdrop-blur-md border border-white/50 rounded-[2.5rem] shadow-2xl flex items-center justify-center">
-                        <ShieldCheck size={48} className="text-emerald-600" />
-                     </div>
-                   </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Message Input */}
+            <div className="px-6 py-4 border-t border-white/5 bg-[#0f1a14] shrink-0">
+              <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus-within:border-emerald-500/50 transition-all">
+                <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFileSelect} />
+                <button onClick={() => fileInputRef.current?.click()} className="w-8 h-8 rounded-xl bg-white/5 hover:bg-emerald-500/20 border border-white/10 flex items-center justify-center transition-all shrink-0" title="Attach file">
+                  <Paperclip size={16} className="text-white/40 hover:text-emerald-400" />
+                </button>
+                <input
+                  type="text"
+                  placeholder={`Secure message to ${selectedContact.name}...`}
+                  value={newMessage}
+                  onChange={e => setNewMessage(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                  className="flex-1 bg-transparent border-none outline-none text-sm font-medium placeholder:text-white/20"
+                />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[10px] text-white/20 font-bold hidden sm:block">Enter ↵</span>
+                  <button
+                    onClick={sendMessage}
+                    disabled={!newMessage.trim() && pendingFiles.length === 0}
+                    className="w-9 h-9 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-30 rounded-xl flex items-center justify-center transition-all hover:scale-105 disabled:hover:scale-100 shadow-lg shadow-emerald-500/20"
+                  >
+                    <Send size={16} className="text-emerald-950" />
+                  </button>
                 </div>
-                <h3 className="text-4xl font-black text-gray-900 tracking-tighter mb-4">Secure Communications Unit</h3>
-                <p className="max-w-md text-gray-500 font-medium text-lg mb-10 leading-relaxed">
-                   Authorized personnel only. Select an encrypted channel from the portal sidebar to begin high-security judicial correspondence.
-                </p>
-                <div className="grid grid-cols-3 gap-6 w-full max-w-2xl px-10">
-                   {[
-                     { icon: <FileText className="text-blue-500" />, label: 'Shared Files' },
-                     { icon: <Clock className="text-amber-500" />, label: 'Message History' },
-                     { icon: <Layers className="text-purple-500" />, label: 'Group Channels' }
-                   ].map(item => (
-                     <div key={item.label} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center gap-3">
-                        {item.icon}
-                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{item.label}</span>
-                     </div>
-                   ))}
-                </div>
-             </div>
-           )}
-        </div>
-
-        {/* Info Sidebar (Optional/Right) */}
-        {selectedContact && (
-           <div className="w-80 bg-white border-l border-gray-100 hidden xl:flex flex-col shrink-0">
-              <div className="p-8 border-b border-gray-50 flex flex-col items-center text-center">
-                 <div className="w-24 h-24 bg-gray-50 rounded-[2rem] flex items-center justify-center text-4xl shadow-xl mb-6 relative">
-                    {selectedContact.avatar}
-                    <div className="absolute -bottom-2 -right-2 px-3 py-1 bg-emerald-100 text-emerald-600 text-[8px] font-black rounded-full border-2 border-white">VERIFIED</div>
-                 </div>
-                 <h4 className="text-xl font-black text-gray-900 tracking-tight leading-none mb-2">{selectedContact.name}</h4>
-                 <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest px-3 py-1 bg-emerald-50 rounded-lg">{selectedContact.role}</p>
               </div>
-              
-              <div className="p-8 space-y-8 overflow-y-auto scrollbar-hide">
-                 <div>
-                    <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                       <Info size={12} className="text-emerald-500" /> Professional Details
-                    </h5>
-                    <div className="space-y-4">
-                       <div className="flex flex-col gap-1 px-4 py-3 bg-gray-50 rounded-xl border border-gray-100">
-                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Identification</span>
-                          <span className="text-xs font-bold text-gray-800">{selectedContact.id}</span>
-                       </div>
-                       <div className="flex flex-col gap-1 px-4 py-3 bg-gray-50 rounded-xl border border-gray-100">
-                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Office Protocol</span>
-                          <span className="text-xs font-bold text-gray-800">Judiciary Registry 4B</span>
-                       </div>
-                    </div>
-                 </div>
-
-                 <div>
-                    <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">Secured Assets</h5>
-                    <div className="space-y-2">
-                       {[
-                         { name: 'Motion_Pre-Trial.pdf', size: '2.4MB' },
-                         { name: 'Evidence_List.xlsx', size: '1.2MB' }
-                       ].map(file => (
-                         <div key={file.name} className="flex items-center gap-3 p-3 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer group border border-dashed border-gray-100 hover:border-emerald-200">
-                            <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-white group-hover:text-emerald-500 transition-colors">
-                               <FileText size={14} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                               <p className="text-[10px] font-bold text-gray-800 truncate leading-none mb-1">{file.name}</p>
-                               <span className="text-[8px] font-black text-gray-400 uppercase">{file.size}</span>
-                            </div>
-                         </div>
-                       ))}
-                       <button className="w-full py-3 text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline">View File Deck</button>
-                    </div>
-                 </div>
-              </div>
-
-              <div className="mt-auto p-8 border-t border-gray-50">
-                 <button className="w-full py-4 bg-gray-100 text-gray-500 font-bold rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-50 hover:text-red-500 transition-all">
-                    End Session
-                 </button>
-              </div>
-           </div>
+              <p className="text-center text-[10px] text-white/15 mt-2 font-medium">🔒 Messages are encrypted in transit and at rest · FDRE Judicial Communication Standard</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
+            <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mb-6">
+              <MessageSquare size={36} className="text-emerald-400" />
+            </div>
+            <h3 className="text-xl font-black mb-2">Select a Channel</h3>
+            <p className="text-sm text-white/30 max-w-xs">Choose a judicial participant from the left panel to begin a secure, encrypted conversation.</p>
+          </div>
         )}
       </div>
-      <Modal 
-        isOpen={modalConfig.isOpen}
-        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
-        title={modalConfig.title}
-        message={modalConfig.message}
-        type={modalConfig.type}
-      />
+
     </div>
   );
 }

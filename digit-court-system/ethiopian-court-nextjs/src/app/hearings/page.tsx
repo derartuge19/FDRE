@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import ThemeToggle from '@/components/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Calendar, 
@@ -25,7 +26,8 @@ import {
   FileText,
   BarChart3,
   MessageSquare,
-  User
+  User,
+  Save
 } from 'lucide-react';
 
 interface Hearing {
@@ -69,21 +71,24 @@ export default function Hearings() {
           });
           const data = await response.json();
           if (data.success) {
-             setHearings(data.data.map((h: any) => ({
-                id: h.id,
-                hearingNumber: h.id,
-                caseNumber: h.caseId,
-                caseTitle: h.title,
-                type: 'initial',
-                date: h.date.split('T')[0],
-                time: h.date.split('T')[1].substring(0, 5),
-                duration: h.duration,
-                judge: h.participants?.[0] || 'Unassigned',
-                courtroom: h.type === 'Virtual' ? 'Digital Room' : 'Courtroom 1',
-                status: h.status.toLowerCase(),
-                isVirtual: h.type === 'Virtual',
-                priority: 'medium'
-             })));
+             setHearings(data.data.map((h: any) => {
+                const dateParts = (h.date || '').split('T');
+                return {
+                  id: h.id || `H-${Math.random().toString(36).substr(2, 9)}`,
+                  hearingNumber: h.id || 'N/A',
+                  caseNumber: h.caseId || 'N/A',
+                  caseTitle: h.title || 'Untitled Case',
+                  type: 'initial',
+                  date: dateParts[0] || 'TBD',
+                  time: dateParts[1] ? dateParts[1].substring(0, 5) : '00:00',
+                  duration: h.duration || '1h',
+                  judge: h.participants?.[0] || 'Unassigned',
+                  courtroom: h.type === 'Virtual' ? 'Digital Room' : 'Courtroom 1',
+                  status: (h.status || 'scheduled').toLowerCase(),
+                  isVirtual: h.type === 'Virtual',
+                  priority: 'medium'
+                };
+             }));
           }
        } catch (err) {
           console.error('Failed to fetch hearings:', err);
@@ -125,6 +130,7 @@ export default function Hearings() {
             </div>
 
             <div className="flex items-center gap-6">
+              <ThemeToggle />
               <Link href="/notifications" className="relative w-12 h-12 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center transition-all">
                 <Bell size={20} className="text-white" />
                 <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-950"></span>
@@ -153,7 +159,7 @@ export default function Hearings() {
         </div>
       </header>
 
-      <nav className="nav-container bg-[#14532d] overflow-x-auto shadow-md">
+      <nav className="nav-container sticky top-20 z-[90] bg-[#14532d] overflow-x-auto shadow-md">
         <div className="container mx-auto flex items-center h-16 px-6 gap-2">
           {[
             { label: 'Dashboard', icon: <Clock size={18} />, href: '/' },
@@ -164,6 +170,7 @@ export default function Hearings() {
             { label: 'Users', icon: <Users size={18} />, href: '/users' },
             { label: 'Reports', icon: <BarChart3 size={18} />, href: '/reports' },
             { label: 'Messages', icon: <MessageSquare size={18} />, href: '/communication' },
+            { label: 'Archives', icon: <Save size={18} />, href: '/archives' },
             { label: 'Settings', icon: <Settings size={18} />, href: '/settings' },
           ].map((item) => (
             <Link 

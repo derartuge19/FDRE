@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import ThemeToggle from '@/components/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '@/components/Modal';
 import { 
@@ -29,7 +30,9 @@ import {
   Video,
   Users,
   BarChart3,
-  MessageSquare
+  MessageSquare,
+  Save,
+  LayoutDashboard
 } from 'lucide-react';
 
 interface Case {
@@ -71,29 +74,57 @@ export default function Cases() {
     }
 
     const fetchCases = async () => {
-      try {
-        const response = await fetch('http://localhost:5173/api/cases', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await response.json();
-        if (data.success) {
-          setCases(data.data.map((c: any) => ({
-            id: c.id,
-            caseNumber: c.caseNumber,
-            title: c.title,
-            type: c.type,
-            status: c.status.toLowerCase(),
-            plaintiff: c.plaintiff,
-            defendant: c.defendant,
-            judge: c.assignedJudge || 'Not Assigned',
-            filingDate: c.filingDate,
-            lastUpdate: c.updatedAt || c.filingDate,
-            priority: c.priority.toLowerCase()
-          })));
-        }
-      } catch (err) {
-        console.error('Failed to fetch cases:', err);
-      }
+      const request = indexedDB.open('CourtRecordsDB', 2);
+      request.onupgradeneeded = (e: any) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('recordings')) db.createObjectStore('recordings', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('cases')) db.createObjectStore('cases', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('documents')) db.createObjectStore('documents', { keyPath: 'id' });
+      };
+      
+      request.onsuccess = async (e: any) => {
+        const db = e.target.result;
+        const transaction = db.transaction(['cases'], 'readonly');
+        const store = transaction.objectStore('cases');
+        const getAllRequest = store.getAll();
+        
+        getAllRequest.onsuccess = async () => {
+          if (getAllRequest.result && getAllRequest.result.length > 0) {
+             setCases(getAllRequest.result.sort((a: any, b: any) => parseInt(b.timestamp || '0') - parseInt(a.timestamp || '0')));
+          } else {
+             try {
+                const response = await fetch('http://localhost:5173/api/cases', {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (data.success) {
+                  const apiCases = data.data.map((c: any) => ({
+                    id: c.id,
+                    caseNumber: c.caseNumber,
+                    title: c.title,
+                    type: c.type,
+                    status: c.status.toLowerCase(),
+                    plaintiff: c.plaintiff,
+                    defendant: c.defendant,
+                    judge: c.assignedJudge || 'Not Assigned',
+                    filingDate: c.filingDate,
+                    lastUpdate: c.updatedAt || c.filingDate,
+                    priority: c.priority.toLowerCase(),
+                    timestamp: Date.now()
+                  }));
+                  
+                  const writeTx = db.transaction(['cases'], 'readwrite');
+                  const writeStore = writeTx.objectStore('cases');
+                  apiCases.forEach((c: any) => writeStore.put(c));
+                  
+                  setCases(apiCases);
+                }
+             } catch (err) {
+                console.error('Failed to fetch cases:', err);
+             }
+          }
+        };
+      };
     };
 
     if (token) fetchCases();
@@ -156,30 +187,39 @@ export default function Cases() {
 
       // 3. Final Docket Initialization (Simulated)
       const title = "New Institutional Case Docket";
-
-      const response = await fetch('http://localhost:5173/api/cases', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          title,
-          type: 'Civil',
-          plaintiff: { name: verifData.data.fullName, id: idNumber },
-          defendant: { name: 'To Be Determined' },
-          description: `Docket initialized after ID Verification (${idNumber}) and Payment (${payData.transactionId}).`
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setModalConfig({
-          isOpen: true,
-          title: 'Case Filed Successfully',
-          message: `Institutional docket ${data.data.id} has been indexed and distributed to the assigned judicial node.`,
-          type: 'success'
-        });
-      }
+      const newCaseId = `CIV-2026-${Math.floor(Math.random() * 900 + 100)}`;
+      
+      const newCase: Case = {
+        id: newCaseId,
+        caseNumber: newCaseId,
+        title: title,
+        type: 'Civil',
+        status: 'pending',
+        plaintiff: verifData.data.fullName,
+        defendant: 'To Be Determined',
+        judge: 'Pending Assignment',
+        filingDate: new Date().toISOString().split('T')[0],
+        lastUpdate: new Date().toISOString().split('T')[0],
+        priority: 'medium',
+        ...({ timestamp: Date.now() } as any)
+      };
+      
+      const request = indexedDB.open('CourtRecordsDB', 2);
+      request.onsuccess = (e: any) => {
+         const db = e.target.result;
+         const tx = db.transaction(['cases'], 'readwrite');
+         const store = tx.objectStore('cases');
+         store.add(newCase);
+         tx.oncomplete = () => {
+            setCases(prev => [newCase, ...prev]);
+            setModalConfig({
+              isOpen: true,
+              title: 'Case Filed Successfully',
+              message: `Institutional docket ${newCaseId} has been indexed and committed to the CourtRecordsDB vault.`,
+              type: 'success'
+            });
+         };
+      };
     } catch (err) {
       setModalConfig({
         isOpen: true,
@@ -227,6 +267,7 @@ export default function Cases() {
             </div>
             
             <div className="flex items-center gap-6">
+              <ThemeToggle />
               <Link href="/notifications" className="relative w-12 h-12 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center transition-all">
                 <Bell size={20} className="text-white" />
                 <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-950"></span>
@@ -259,10 +300,10 @@ export default function Cases() {
       </header>
 
       {/* Navigation */}
-      <nav className="nav-container bg-[#14532d] overflow-x-auto shadow-md">
+      <nav className="nav-container sticky top-20 z-[90] bg-[#14532d] overflow-x-auto shadow-md">
         <div className="container mx-auto flex items-center h-16 px-6 gap-2">
           {[
-            { label: 'Dashboard', icon: <Clock size={18} />, href: '/' },
+            { label: 'Dashboard', icon: <LayoutDashboard size={18} />, href: '/' },
             { label: 'Cases', icon: <Briefcase size={18} />, href: '/cases', active: true },
             { label: 'Hearings', icon: <Gavel size={18} />, href: '/hearings' },
             { label: 'Documents', icon: <FileText size={18} />, href: '/documents' },
@@ -270,6 +311,7 @@ export default function Cases() {
             { label: 'Users', icon: <Users size={18} />, href: '/users' },
             { label: 'Reports', icon: <BarChart3 size={18} />, href: '/reports' },
             { label: 'Messages', icon: <MessageSquare size={18} />, href: '/communication' },
+            { label: 'Archives', icon: <Save size={18} />, href: '/archives' },
             { label: 'Settings', icon: <Settings size={18} />, href: '/settings' },
           ].map((item) => (
             <Link 

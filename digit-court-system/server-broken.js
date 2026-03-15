@@ -49,7 +49,7 @@ const authLimiter = rateLimit({
 
 // CORS configuration
 const corsOptions = {
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://127.0.0.1:3000'],
   credentials: true,
   optionsSuccessStatus: 200
 };
@@ -90,8 +90,8 @@ if (!fs.existsSync('uploads')) {
 
 // Mock user database with full role spectrum
 const users = [
-  { id: 'admin-1', username: 'admin.system', password: 'password123', name: 'System Administrator', email: 'admin@court.gov.et', roles: ['admin'], permissions: ['user_management', 'system_config', 'security_audit', 'backup_restore', 'case_view', 'reporting'], department: 'IT Infrastructure', isActive: true, mfaEnabled: true, lastLogin: new Date().toISOString() },
-  { id: 'judge-1', username: 'judge.alemu', password: 'password123', name: 'Judge Alemu Bekele', email: 'alemu.bekele@court.gov.et', roles: ['judge'], permissions: ['case_review', 'hearing_conduct', 'decision_recording', 'case_view', 'hearing_control'], department: 'High Court', isActive: true, mfaEnabled: true, lastLogin: new Date().toISOString() },
+  { id: 'admin-1', username: 'admin.system', password: 'password123', name: 'System Administrator', email: 'admin@court.gov.et', roles: ['admin'], permissions: ['user_management', 'system_config', 'security_audit', 'backup_restore', 'case_view', 'reporting', 'virtual_hearing', 'hearing_control', 'case_filing'], department: 'IT Infrastructure', isActive: true, mfaEnabled: true, lastLogin: new Date().toISOString() },
+  { id: 'judge-1', username: 'judge.alemu', password: 'password123', name: 'Judge Alemu Bekele', email: 'alemu.bekele@court.gov.et', roles: ['judge'], permissions: ['case_review', 'hearing_conduct', 'decision_recording', 'case_view', 'hearing_control', 'virtual_hearing'], department: 'High Court', isActive: true, mfaEnabled: true, lastLogin: new Date().toISOString() },
   { id: 'court-admin-1', username: 'court.admin', password: 'password123', name: 'Court Administrator', email: 'court.admin@court.gov.et', roles: ['court_admin'], permissions: ['hearing_scheduling', 'judge_assignment', 'reporting', 'case_view'], department: 'Registry', isActive: true, mfaEnabled: true, lastLogin: new Date().toISOString() },
   { id: 'lawyer-1', username: 'lawyer.sara', password: 'password123', name: 'Sara Ahmed', email: 'sara@lawfirm.et', roles: ['lawyer'], permissions: ['case_filing', 'document_submission', 'hearing_participation', 'client_rep'], firm: 'Ahmed & Associates', isActive: true, mfaEnabled: false, lastLogin: new Date().toISOString() },
   { id: 'plaintiff-1', username: 'plaintiff.john', password: 'password123', name: 'John Doe', email: 'john@email.com', roles: ['plaintiff'], permissions: ['case_filing', 'evidence_upload', 'case_tracking'], isActive: true, mfaEnabled: false, lastLogin: new Date().toISOString() },

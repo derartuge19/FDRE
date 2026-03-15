@@ -15,6 +15,16 @@ export const metadata: Metadata = {
   },
 };
 
+// Script injected before paint to avoid theme flash
+const themeScript = `
+(function(){
+  try {
+    var t = localStorage.getItem('courtTheme') || 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  } catch(e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -22,6 +32,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         {children}
       </body>

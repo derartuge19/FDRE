@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import ThemeToggle from '@/components/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BarChart3, 
@@ -28,7 +29,8 @@ import {
   Video,
   Users,
   MessageSquare,
-  User
+  User,
+  Save
 } from 'lucide-react';
 
 interface Report {
@@ -118,6 +120,7 @@ export default function Reports() {
             </div>
             
             <div className="flex items-center gap-6">
+              <ThemeToggle />
               <button className="relative w-12 h-12 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center transition-all">
                 <Bell size={20} className="text-white" />
                 <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-950"></span>
@@ -150,7 +153,7 @@ export default function Reports() {
       </header>
 
       {/* Navigation */}
-      <nav className="nav-container bg-[#14532d] overflow-x-auto shadow-md">
+      <nav className="nav-container sticky top-20 z-[90] bg-[#14532d] overflow-x-auto shadow-md">
         <div className="container mx-auto flex items-center h-16 px-6 gap-2">
           {[
             { label: 'Dashboard', icon: <LayoutDashboard size={18} />, href: '/' },
@@ -161,6 +164,7 @@ export default function Reports() {
             { label: 'Users', icon: <Users size={18} />, href: '/users' },
             { label: 'Reports', icon: <BarChart3 size={18} />, href: '/reports', active: true },
             { label: 'Messages', icon: <MessageSquare size={18} />, href: '/communication' },
+            { label: 'Archives', icon: <Save size={18} />, href: '/archives' },
             { label: 'Settings', icon: <Settings size={18} />, href: '/settings' },
           ].map((item) => (
             <Link 
