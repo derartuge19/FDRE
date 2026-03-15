@@ -1,0 +1,174 @@
+version: '3.8'
+
+services:
+  # DATABASES
+  postgres:
+    image: postgres:13
+    container_name: court-postgres
+    environment:
+      POSTGRES_DB: court_system
+      POSTGRES_USER: court_admin
+      POSTGRES_PASSWORD: secure_password
+      POSTGRES_DB_SCHEMA: court_system
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - court-network
+
+  redis:
+    image: redis:alpine
+    container_name: court-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - court-network
+
+  elasticsearch:
+    image: elasticsearch:7.17.0
+    container_name: court-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      "ES_JAVA_OPTS": "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - court-network
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: court-kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    networks:
+      - court-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: court-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - court-network
+
+  # CORE SERVICES
+  digit-user-service:
+    build: ./core-services/digit-user-service
+    container_name: court-user-service
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_HOST: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8080:8080"
+    networks:
+      - court-network
+
+  digit-notification-service:
+    build: ./core-services/digit-notification-service
+    container_name: court-notification-service
+    depends_on:
+      - kafka
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SMS_PROVIDER_CLASS: generic
+      SMS_PROVIDER_URL: https://your-sms-gateway.com
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8081:8081"
+    networks:
+      - court-network
+
+  digit-workflow-service:
+    build: ./core-services/digit-workflow-service
+    container_name: court-workflow-service
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_HOST: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8082:8082"
+    networks:
+      - court-network
+
+  digit-filestore:
+    build: ./core-services/digit-filestore
+    container_name: court-filestore
+    depends_on:
+      - postgres
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_HOST: postgres
+    ports:
+      - "8083:8083"
+    networks:
+      - court-network
+
+  digit-mdms-service:
+    build: ./core-services/digit-mdms-service
+    container_name: court-mdms-service
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_HOST: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8084:8084"
+    networks:
+      - court-network
+
+  digit-indexer:
+    build: ./core-services/digit-indexer
+    container_name: court-indexer
+    depends_on:
+      - elasticsearch
+      - kafka
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8085:8085"
+    networks:
+      - court-network
+
+  digit-persister:
+    build: ./core-services/digit-persister
+    container_name: court-persister
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_HOST: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8086:8086"
+    networks:
+      - court-network
+
+volumes:
+  postgres_data:
+
+networks:
+  court-network:
+    driver: bridge
