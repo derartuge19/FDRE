@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {  
   Download, 
   Trash2, 
   Video, 
@@ -22,7 +22,10 @@ import {
   MessageSquare,
   Save,
   Settings
-} from 'lucide-react';
+ } from 'lucide-react';
+import Header from '@/components/Header';
+import Navigation from '@/components/Navigation';
+import RequireAccess from '@/components/RequireAccess';
 
 export default function Archives() {
   const [records, setRecords] = useState<any[]>([]);
@@ -96,59 +99,15 @@ export default function Archives() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#FDFCFB] flex flex-col font-sans text-slate-900">
+    <RequireAccess allowedRoles={['SYSTEM_ADMIN', 'COURT_ADMIN', 'JUDGE', 'CLERK', 'LAWYER', 'PLAINTIFF', 'DEFENDANT']}>
+    <div className="min-h-screen page-bg flex flex-col font-sans page-text">
       {/* Premium Header */}
-      <header className="h-20 bg-emerald-950 border-b border-emerald-900 flex items-center justify-between px-12 shadow-2xl sticky top-0 z-[100]">
-        <Link href="/" className="flex items-center gap-5 group">
-          <div className="w-14 h-14 bg-white rounded-[1.25rem] flex items-center justify-center shadow-lg group-hover:rotate-12 transition-all duration-500">
-            <Gavel size={28} className="text-emerald-900" />
-          </div>
-          <div className="text-white">
-            <h1 className="text-xl font-black tracking-tighter uppercase leading-none mb-1">Judiciary Archives</h1>
-            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.3em] opacity-70">Official Record Maintenance</p>
-          </div>
-        </Link>
-        <div className="flex items-center gap-6">
-           <ThemeToggle />
-           <div className="hidden lg:flex items-center gap-3 px-6 py-2.5 bg-white/5 border border-white/10 rounded-2xl">
-              <Shield size={16} className="text-emerald-400" />
-              <span className="text-[10px] font-black text-white uppercase tracking-widest">RSA-4096 Secure Vault</span>
-           </div>
-           <Link href="/virtual-hearing" className="px-8 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase transition-all shadow-xl shadow-emerald-500/20 active:scale-95">Return to Chamber</Link>
-        </div>
-      </header>
-
-      {/* Global Context Navigation */}
-      <nav className="nav-container sticky top-20 z-[90] bg-[#14532d] overflow-x-auto shadow-md shrink-0 border-t border-emerald-900/50">
-        <div className="container mx-auto flex items-center h-16 px-6 gap-2">
-          {[
-            { label: 'Dashboard', icon: <LayoutDashboard size={18} />, href: '/' },
-            { label: 'Cases', icon: <Briefcase size={18} />, href: '/cases' },
-            { label: 'Hearings', icon: <Gavel size={18} />, href: '/hearings' },
-            { label: 'Documents', icon: <FileText size={18} />, href: '/documents' },
-            { label: 'Virtual Hearing', icon: <Video size={18} />, href: '/virtual-hearing' },
-            { label: 'Users', icon: <Users size={18} />, href: '/users' },
-            { label: 'Reports', icon: <BarChart3 size={18} />, href: '/reports' },
-            { label: 'Messages', icon: <MessageSquare size={18} />, href: '/communication' },
-            { label: 'Archives', icon: <Save size={18} />, href: '/archives', active: true },
-            { label: 'Settings', icon: <Settings size={18} />, href: '/settings' },
-          ].map((item) => (
-            <Link 
-              key={item.label} 
-              href={item.href} 
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                item.active ? 'bg-emerald-400 text-emerald-950 shadow-lg' : 'text-emerald-50 hover:bg-emerald-800'
-              }`}
-            >
-              {item.icon} {item.label}
-            </Link>
-          ))}
-        </div>
-      </nav>
+      <Header />
+      <Navigation />
 
       <div className="flex" style={{ minHeight: 'calc(100vh - 9rem)' }}>
         {/* Sidebar Nav */}
-        <aside className="w-80 bg-white border-r border-slate-200 p-10 flex flex-col gap-10 shrink-0">
+        <aside className="w-80 card-bg border-r border-emerald-500/10 p-10 flex flex-col gap-10 shrink-0">
            <div>
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Archive Explorer</h3>
               <nav className="flex flex-col gap-2">
@@ -174,36 +133,36 @@ export default function Archives() {
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-10 mb-16">
               <div>
                 <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-                   <div className="flex items-center gap-2 text-emerald-600 font-bold text-[10px] uppercase tracking-widest mb-4">
-                     <span className="bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-200/50">Official Dossier</span>
+                   <div className="flex items-center gap-2 text-emerald-500 font-bold text-[10px] uppercase tracking-widest mb-4">
+                     <span className="bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">Official Dossier</span>
                    </div>
-                   <h2 className="text-6xl font-black text-slate-900 tracking-tighter mb-4 leading-none">Hearing Memory Vault</h2>
-                   <p className="text-slate-500 font-medium text-xl max-w-2xl leading-relaxed">Management and playback of high-fidelity judicial proceedings committed to the sovereign record.</p>
+                   <h2 className="text-6xl font-black page-text tracking-tighter mb-4 leading-none">Hearing Memory Vault</h2>
+                   <p className="text-secondary font-medium text-xl max-w-2xl leading-relaxed">Management and playback of high-fidelity judicial proceedings committed to the sovereign record.</p>
                 </motion.div>
               </div>
-              <div className="bg-white p-2 rounded-[2.5rem] shadow-2xl border border-slate-100 flex items-center gap-4 w-full lg:w-[450px]">
-                <div className="w-14 h-14 bg-slate-50 rounded-[1.8rem] flex items-center justify-center text-slate-300"><Search size={24} /></div>
+              <div className="card-bg p-2 rounded-[2.5rem] shadow-2xl border border-emerald-500/10 flex items-center gap-4 w-full lg:w-[450px]">
+                <div className="w-14 h-14 bg-emerald-500/5 rounded-[1.8rem] flex items-center justify-center text-muted"><Search size={24} /></div>
                 <input 
                   type="text" 
                   placeholder="Query archive logs..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm font-bold text-slate-700 w-full placeholder:text-slate-300" 
+                  className="bg-transparent border-none outline-none text-sm font-bold page-text w-full placeholder:text-muted" 
                 />
               </div>
             </div>
 
             {activeTab === 'recordings' && (
               filteredRecords.length === 0 ? (
-                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[4rem] border border-slate-100 py-32 flex flex-col items-center justify-center gap-10 shadow-2xl shadow-emerald-950/5 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_white_0%,_#FDFCFB_100%)] opacity-50" />
-                  <div className="w-32 h-32 bg-slate-50 rounded-[3rem] flex items-center justify-center text-slate-200 relative z-10 shadow-inner group overflow-hidden">
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="card-bg rounded-[4rem] border border-emerald-500/10 py-32 flex flex-col items-center justify-center gap-10 shadow-2xl shadow-emerald-950/5 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--gradient-inner)_0%,_var(--gradient-outer)_100%)] opacity-50" />
+                  <div className="w-32 h-32 bg-emerald-500/5 rounded-[3rem] flex items-center justify-center text-muted relative z-10 shadow-inner group overflow-hidden">
                      <div className="absolute inset-0 bg-emerald-50 scale-0 group-hover:scale-100 transition-transform duration-700 rounded-full opacity-20" />
                      <Video size={56} className="relative z-10" />
                   </div>
                   <div className="text-center relative z-10 px-8">
-                     <h3 className="text-3xl font-black text-slate-800 uppercase tracking-tighter mb-4">Video Logs Standby</h3>
-                     <p className="text-slate-400 text-sm font-bold uppercase tracking-[0.2em] max-w-xs mx-auto leading-loose">The jurisdictional vault contains no committed video records at this time.</p>
+                     <h3 className="text-3xl font-black page-text uppercase tracking-tighter mb-4">Video Logs Standby</h3>
+                     <p className="text-muted text-sm font-bold uppercase tracking-[0.2em] max-w-xs mx-auto leading-loose">The jurisdictional vault contains no committed video records at this time.</p>
                   </div>
                 </motion.div>
               ) : (
@@ -217,7 +176,7 @@ export default function Archives() {
                         transition={{ delay: idx * 0.1 }}
                         className="group"
                       >
-                        <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-2xl shadow-emerald-950/5 overflow-hidden group-hover:border-emerald-500 group-hover:shadow-emerald-950/10 transition-all duration-500 flex flex-col relative h-full">
+                        <div className="card-bg rounded-[3.5rem] border border-emerald-500/10 shadow-2xl shadow-emerald-950/5 overflow-hidden group-hover:border-emerald-500 group-hover:shadow-emerald-950/10 transition-all duration-500 flex flex-col relative h-full">
                           <div className="aspect-video bg-slate-900 relative overflow-hidden">
                             <video src={rec.url} controls className="w-full h-full object-cover" />
                             <div className="absolute top-6 left-6 px-4 py-2 bg-emerald-600/90 backdrop-blur-md text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">JUDICIAL CAPTURE</div>
@@ -227,17 +186,17 @@ export default function Archives() {
                             <div>
                               <div className="flex items-center gap-2 mb-3">
                                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
-                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Digital Archive #{rec.id.toString().slice(-4)}</span>
+                                 <span className="text-[9px] font-black text-muted uppercase tracking-widest">Digital Archive #{rec.id.toString().slice(-4)}</span>
                               </div>
-                              <h4 className="text-2xl font-black text-slate-800 tracking-tighter mb-4 group-hover:text-emerald-700 transition-colors uppercase leading-tight line-clamp-2">{rec.name}</h4>
-                              <div className="flex flex-wrap items-center gap-6 text-[10px] font-black text-slate-400 tracking-widest uppercase">
-                                 <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100"><Calendar size={14} className="text-emerald-600" /> {new Date(rec.id).toLocaleDateString()}</div>
-                                 <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100"><Clock size={14} className="text-emerald-600" /> {rec.timestamp}</div>
+                              <h4 className="text-2xl font-black page-text tracking-tighter mb-4 group-hover:text-emerald-500 transition-colors uppercase leading-tight line-clamp-2">{rec.name}</h4>
+                              <div className="flex flex-wrap items-center gap-6 text-[10px] font-black text-muted tracking-widest uppercase">
+                                 <div className="flex items-center gap-2 bg-emerald-500/5 px-3 py-1.5 rounded-xl border border-emerald-500/10"><Calendar size={14} className="text-emerald-500" /> {new Date(rec.id).toLocaleDateString()}</div>
+                                 <div className="flex items-center gap-2 bg-emerald-500/5 px-3 py-1.5 rounded-xl border border-emerald-500/10"><Clock size={14} className="text-emerald-500" /> {rec.timestamp}</div>
                               </div>
                             </div>
                             
-                            <div className="flex items-center justify-between pt-8 border-t border-slate-50 mt-auto">
-                              <button onClick={() => deleteRecording(rec.id)} className="w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm hover:scale-110 active:scale-95"><Trash2 size={20} /></button>
+                            <div className="flex items-center justify-between pt-8 border-t border-emerald-500/10 mt-auto">
+                              <button onClick={() => deleteRecording(rec.id)} className="w-14 h-14 flex items-center justify-center rounded-[1.5rem] bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm hover:scale-110 active:scale-95"><Trash2 size={20} /></button>
                               <a href={rec.url} download={rec.name} className="flex items-center gap-4 px-10 py-5 bg-emerald-950 text-white rounded-[1.8rem] text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl hover:bg-emerald-800 transition-all hover:-translate-y-1 active:scale-95 group/btn">
                                  Commit Download <Download size={18} className="text-emerald-400 group-hover/btn:translate-y-0.5 transition-transform" />
                               </a>
@@ -334,5 +293,6 @@ export default function Archives() {
         </main>
       </div>
     </div>
+    </RequireAccess>
   );
 }

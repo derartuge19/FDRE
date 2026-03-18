@@ -1,53 +1,55 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '@/components/Modal';
-import { 
+import { useUserRole } from '@/hooks/useUserRole';
+import RequireAccess from '@/components/RequireAccess';
+import {  
   Video, 
   Mic, 
   MicOff, 
   VideoOff, 
   Monitor, 
-  Search,
+  FileText,
+  Maximize2,
+  Minimize2,
   Plus,
+  Search,
+  Filter,
+  ChevronRight,
+  Square,
+  Circle,
+  Pause,
+  Play,
   Users,
+  User,
   Shield,
   Gavel,
-  Circle,
   Hand,
   LogOut,
   MoreHorizontal,
   Share2,
   Camera,
-  ChevronRight,
   Send,
   Lock,
   Settings,
   Bell,
   Clock,
   MessageSquare,
-  LayoutDashboard,
-  Briefcase,
-  FileText,
-  BarChart3,
   X,
-  Maximize2,
   Paperclip,
   Volume2,
-  Terminal,
   Activity,
   Pipette,
   CheckCircle2,
   AlertCircle,
-  DoorOpen,
-  Play,
-  Save,
   Download,
+  Save,
   Trash2
-} from 'lucide-react';
+ } from 'lucide-react';
 
 // --- TYPES ---
 interface Participant {
@@ -68,15 +70,22 @@ export default function VirtualHearing() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isInHearing, setIsInHearing] = useState(false);
   const [isBreakoutActive, setIsBreakoutActive] = useState(false);
+  const [activeBreakoutRoom, setActiveBreakoutRoom] = useState<string | null>(null);
   
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isRecordingPaused, setIsRecordingPaused] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isEvidenceOpen, setIsEvidenceOpen] = useState(false);
+  const [presentationMode, setPresentationMode] = useState<'main' | 'split'>('main');
   
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('chat');
+  const [activeTab, setActiveTab ] = useState<TabType>('chat');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isBreakoutModalOpen, setIsBreakoutModalOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const [modalConfig, setModalConfig] = useState<{isOpen: boolean, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}>({
     isOpen: false, title: '', message: '', type: 'info'
@@ -84,15 +93,14 @@ export default function VirtualHearing() {
 
   const [isSavePromptOpen, setIsSavePromptOpen] = useState(false);
   const [tempRecordingBlob, setTempRecordingBlob] = useState<Blob | null>(null);
-
-  const [sessionId] = useState('COURT-SESSION-2026-X8');
+  const [sessionId] = useState(`CHAMBER-${Math.random().toString(36).substr(2, 6).toUpperCase()}`);
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   
   const lobbyVideoRef = useRef<HTMLVideoElement>(null);
   const chamberVideoRef = useRef<HTMLVideoElement>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const screenStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   
   const [transcripts, setTranscripts] = useState<any[]>([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -101,644 +109,844 @@ export default function VirtualHearing() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [savedRecordings, setSavedRecordings] = useState<any[]>([]);
   const [evidenceFiles, setEvidenceFiles] = useState<any[]>([]);
+  const [activeEvidence, setActiveEvidence] = useState<any>(null);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [isPreviewReady, setIsPreviewReady] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const evidenceInputRef = useRef<HTMLInputElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
 
-  const [participants] = useState<Participant[]>([
+  const [participants, setParticipants] = useState<Participant[]>([
     { id: 'judge-1', name: 'Judge Alemu Bekele', role: 'Presiding Judge', status: 'online', isMuted: false, isVideoOff: false, isRaisingHand: false, avatar: '⚖️', color: 'bg-emerald-600' },
-    { id: 'lawyer-1', name: 'Lawyer Sara Ahmed', role: 'Plaintiff Counsel', status: 'online', isMuted: true, isVideoOff: false, isRaisingHand: false, avatar: '💼', color: 'bg-blue-600' },
-    { id: 'lawyer-2', name: 'Lawyer Robert Johnson', role: 'Defense Counsel', status: 'online', isMuted: false, isVideoOff: false, isRaisingHand: false, avatar: '💼', color: 'bg-purple-600' },
+    { id: 'lawyer-1', name: 'Lawyer Sara Ahmed', role: 'Plaintiff Attorney', status: 'online', isMuted: true, isVideoOff: false, isRaisingHand: false, avatar: '💼', color: 'bg-blue-600' },
+    { id: 'lawyer-2', name: 'Lawyer Robert Johnson', role: 'Defense Counsel', status: 'online', isMuted: false, isVideoOff: false, isRaisingHand: false, avatar: '💼', color: 'bg-indigo-600' },
+    { id: 'clerk-1', name: 'Clerk Mohammed', role: 'Court Clerk', status: 'waiting', isMuted: true, isVideoOff: true, isRaisingHand: false, avatar: '📋', color: 'bg-slate-600' },
+    { id: 'plaintiff-1', name: 'John Doe', role: 'Plaintiff', status: 'online', isMuted: true, isVideoOff: false, isRaisingHand: false, avatar: '👤', color: 'bg-teal-600' },
+  ]);
+
+  const [breakoutRooms, setBreakoutRooms] = useState<any[]>([
+    { id: 'room-1', name: 'Privileged Council A', participants: ['lawyer-1', 'plaintiff-1'] },
+    { id: 'room-2', name: 'Private Deliberation', participants: ['judge-1'] }
   ]);
 
   const [messages, setMessages] = useState<any[]>([
-    { id: 1, sender: 'SYSTEM', content: 'Judicial Security Protocol [RSA-4096] Established.', type: 'system', timestamp: '14:30' },
+    { id: 1, sender: 'SYSTEM', content: 'Judicial Security Protocol [RSA-4096] Established. Uplink Synchronized.', type: 'system', timestamp: '11:40' },
   ]);
   const [chatInput, setChatInput] = useState('');
-  const currentUserRef = useRef<any>(null);
-
-  useEffect(() => {
-    const user = localStorage.getItem('courtUser');
-    if (user) {
-      const parsed = JSON.parse(user);
-      setCurrentUser(parsed);
-      currentUserRef.current = parsed;
-    }
-  }, []);
-
-  useEffect(() => {
-    currentUserRef.current = currentUser;
-  }, [currentUser]);
-
-  // Robust function to sync video element with current stream
-  const syncMedia = useCallback(() => {
-    const targetStream = isScreenSharing ? screenStreamRef.current : mediaStreamRef.current;
-    
-    if (isInHearing) {
-      if (chamberVideoRef.current && chamberVideoRef.current.srcObject !== targetStream) {
-        chamberVideoRef.current.srcObject = targetStream || null;
-      }
-    } else {
-      if (lobbyVideoRef.current && lobbyVideoRef.current.srcObject !== mediaStreamRef.current) {
-        lobbyVideoRef.current.srcObject = mediaStreamRef.current || null;
-      }
-    }
-  }, [isScreenSharing, isInHearing]);
- 
   const [db, setDb] = useState<IDBDatabase | null>(null);
 
-  // IndexedDB and Component Initialization
+  const userRole = useUserRole();
+  const isJudge = userRole === 'JUDGE' || userRole === 'SYSTEM_ADMIN';
+  const isCourtStaff = isJudge || userRole === 'CLERK' || userRole === 'COURT_ADMIN';
+
+  // --- INITIALIZATION ---
   useEffect(() => {
     setMounted(true);
-    
-    // Core Judiciary Database Link
+    const userStr = localStorage.getItem('courtUser');
+    if (userStr && !currentUser) {
+       try { setCurrentUser(JSON.parse(userStr)); } catch(e) {}
+    }
+
     const request = indexedDB.open('CourtRecordsDB', 2);
-    request.onupgradeneeded = (e: any) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains('recordings')) db.createObjectStore('recordings', { keyPath: 'id' });
-      if (!db.objectStoreNames.contains('cases')) db.createObjectStore('cases', { keyPath: 'id' });
-      if (!db.objectStoreNames.contains('documents')) db.createObjectStore('documents', { keyPath: 'id' });
-    };
     request.onsuccess = (e: any) => {
       setDb(e.target.result);
       loadSavedRecordings(e.target.result);
     };
 
-    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
-    
-    // Live Scribe Initialization
+    // Live Scribe Senses
     if (typeof window !== 'undefined' && ('WebkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'en-US';
-
       recognitionRef.current.onresult = (event: any) => {
         const transcript = Array.from(event.results)
           .map((result: any) => result[0])
-          .map((result: any) => (result as any).transcript)
-          .join('');
-        
+          .map((result: any) => (result as any).transcript).join('');
         if (event.results[event.results.length - 1].isFinal) {
-          setTranscripts(prev => [...prev.slice(-10), {
-            id: Date.now(),
-            speaker: currentUserRef.current?.name || 'You',
-            text: transcript,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          setTranscripts(prev => [...prev, {
+            id: Date.now(), speaker: 'Participant', text: transcript, timestamp: new Date().toLocaleTimeString()
           }]);
         }
       };
     }
 
     return () => {
-      clearInterval(interval);
-      stopMedia();
     };
-  }, []); // Dependencies cleared to prevent recursion
+  }, []);
 
-  // Proactive lobby initialization
+  // Timer & Recording Management
   useEffect(() => {
-    if (mounted && !isInHearing && !mediaStreamRef.current) {
-      const initPreview = async () => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+      if (isRecording && !isRecordingPaused) {
+        setRecordingDuration(prev => prev + 1);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isRecording, isRecordingPaused]);
+
+  useEffect(() => {
+    let active = true;
+
+    const initAudio = async () => {
+      if (mounted && !isInHearing && localStream && isPreviewReady) {
+        if (!audioContextRef.current) {
+          const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+          const ctx = new AudioContextClass();
+          
+          if (ctx.state === 'suspended') {
+            await ctx.resume().catch(e => console.log('AudioContext wait:', e));
+          }
+          
+          if (!active) {
+            ctx.close();
+            return;
+          }
+          
+          const analyser = ctx.createAnalyser();
+          const src = ctx.createMediaStreamSource(localStream);
+          src.connect(analyser); 
+          analyser.fftSize = 256;
+          
+          audioContextRef.current = ctx;
+          analyserRef.current = analyser;
+        }
+
+        const analyser = analyserRef.current;
+        if (analyser) {
+          const bufferLength = analyser.frequencyBinCount;
+          const dataArray = new Uint8Array(bufferLength);
+          
+          const updateLevel = () => {
+            if (!active || !analyserRef.current) return;
+            analyserRef.current.getByteFrequencyData(dataArray);
+            const average = dataArray.reduce((p, c) => p + c, 0) / (bufferLength || 1);
+            setAudioLevel(average * 3);
+            requestAnimationFrame(updateLevel);
+          };
+          
+          updateLevel();
+        }
+      }
+    };
+
+    initAudio();
+    
+    return () => {
+      active = false;
+    };
+  }, [mounted, isInHearing, localStream, isPreviewReady]);
+
+  const isAcquiringMediaRef = useRef(false);
+
+  // --- LOBBY MEDIA PREVIEW ---
+  useEffect(() => {
+    let active = true;
+    
+    const acquireMedia = async () => {
+      if (mounted && !isInHearing && !localStream && !isAcquiringMediaRef.current) {
+        isAcquiringMediaRef.current = true;
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-          mediaStreamRef.current = stream;
-          syncMedia();
-        } catch (e) {
-          console.log("Hardware access deferred");
+          
+          if (!active) {
+            stream.getTracks().forEach(t => t.stop());
+            isAcquiringMediaRef.current = false;
+            return;
+          }
+          
+          setLocalStream(stream);
+          setIsPreviewReady(true);
+        } catch (err: any) {
+          if (!active) {
+            isAcquiringMediaRef.current = false;
+            return;
+          }
+          console.error('Hardware Link Failure:', err);
+          
+          let errorMsg = 'Please authorize the judicial chamber to access your camera and microphone.';
+          if (err.name === 'NotReadableError') {
+              errorMsg = 'Hardware is locked by another application. Close other meeting tabs or apps and try again.';
+          }
+          
+          setModalConfig({
+            isOpen: true,
+            title: 'Critical Uplink Intercepted',
+            message: errorMsg,
+            type: 'error'
+          });
+        } finally {
+          isAcquiringMediaRef.current = false;
         }
-      };
-      initPreview();
-    }
-  }, [mounted, isInHearing, syncMedia]);
-
-  // Persistent monitor for video state
-  useEffect(() => {
-    syncMedia();
-  }, [isInHearing, isBreakoutActive, isScreenSharing, syncMedia]);
-
-  const startMedia = async () => {
-    if (mediaStreamRef.current) {
-      setIsInHearing(true);
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 1280, height: 720 }, 
-        audio: true 
-      });
-      mediaStreamRef.current = stream;
-      setIsInHearing(true);
-      if (recognitionRef.current) {
-        try { recognitionRef.current.start(); setIsTranscribing(true); } catch (e) {}
       }
-    } catch (e: any) {
-      let msg = 'Could not access camera/microphone.';
-      if (e.name === 'NotAllowedError') msg = 'Permission Denied: Please allow camera access in your browser settings.';
-      setModalConfig({ isOpen: true, title: 'Hardware Access Denied', message: msg, type: 'error' });
-    }
-  };
-
-  const stopMedia = () => {
-    if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(track => track.stop());
-    if (screenStreamRef.current) screenStreamRef.current.getTracks().forEach(track => track.stop());
-    if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch(e) {} setIsTranscribing(false); }
-    mediaStreamRef.current = null;
-    screenStreamRef.current = null;
-    setIsInHearing(false);
-    setIsRecording(false);
-  };
-
-  const toggleAudio = async () => {
-    if (!mediaStreamRef.current) return;
-    const audioTracks = mediaStreamRef.current.getAudioTracks();
-
-    if (!isAudioMuted) {
-      // Mute: stop the physical microphone hardware track
-      audioTracks.forEach(track => track.stop());
-      setIsAudioMuted(true);
-    } else {
-      // Unmute: re-request microphone access from the OS
-      try {
-        const newStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        const newAudioTrack = newStream.getAudioTracks()[0];
-        // Remove old stopped audio tracks from the stream
-        audioTracks.forEach(t => mediaStreamRef.current!.removeTrack(t));
-        // Add the fresh live track
-        mediaStreamRef.current!.addTrack(newAudioTrack);
-        setIsAudioMuted(false);
-      } catch (e) {
-        setModalConfig({ isOpen: true, title: 'Microphone Access Denied', message: 'Unable to re-enable microphone. Please check browser permissions.', type: 'error' });
-      }
-    }
-  };
-
-  const toggleVideo = async () => {
-    if (!mediaStreamRef.current) return;
-    const videoTracks = mediaStreamRef.current.getVideoTracks();
-
-    if (!isVideoMuted) {
-      // Turn off: stop the physical camera hardware track (camera LED turns off)
-      videoTracks.forEach(track => track.stop());
-      setIsVideoMuted(true);
-      // Clear the video element so the black frame shows
-      const videoEl = isInHearing ? chamberVideoRef.current : lobbyVideoRef.current;
-      if (videoEl) {
-        const audioTracks = mediaStreamRef.current!.getAudioTracks();
-        const audioOnlyStream = new MediaStream(audioTracks);
-        videoEl.srcObject = audioOnlyStream;
-      }
-    } else {
-      // Turn on: re-request camera access from the OS (camera LED lights up)
-      try {
-        const newStream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false });
-        const newVideoTrack = newStream.getVideoTracks()[0];
-        // Remove old stopped video tracks
-        videoTracks.forEach(t => mediaStreamRef.current!.removeTrack(t));
-        // Splice new live track back in
-        mediaStreamRef.current!.addTrack(newVideoTrack);
-        setIsVideoMuted(false);
-        // Re-attach the full stream to the video element
-        const videoEl = isInHearing ? chamberVideoRef.current : lobbyVideoRef.current;
-        if (videoEl) videoEl.srcObject = mediaStreamRef.current;
-      } catch (e) {
-        setModalConfig({ isOpen: true, title: 'Camera Access Denied', message: 'Unable to re-enable camera. Please check browser permissions.', type: 'error' });
-      }
-    }
-  };
-
-  const toggleScreenShare = async () => {
-    if (!isScreenSharing) {
-      try {
-        const stream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true });
-        screenStreamRef.current = stream;
-        setIsScreenSharing(true);
-        stream.getVideoTracks()[0].onended = stopScreenShare;
-      } catch (e) {}
-    } else stopScreenShare();
-  };
-
-  const stopScreenShare = () => {
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach(track => track.stop());
-      screenStreamRef.current = null;
-    }
-    setIsScreenSharing(false);
-  };
-
-  const startRecording = () => {
-    if (!mediaStreamRef.current) return;
-    recordedChunksRef.current = [];
-    const options = { mimeType: 'video/webm; codecs=vp9' };
-    const recorder = new MediaRecorder(mediaStreamRef.current, options);
-    recorder.ondataavailable = (event) => event.data.size > 0 && recordedChunksRef.current.push(event.data);
-    recorder.onstop = () => {
-      const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-      setTempRecordingBlob(blob);
-      setIsSavePromptOpen(true);
     };
-    recorder.start();
-    mediaRecorderRef.current = recorder;
-    setIsRecording(true);
+    
+    acquireMedia();
+    
+    return () => {
+      active = false;
+    };
+  }, [mounted, isInHearing, localStream]);
+
+  // Sync media tracks with mute state
+  useEffect(() => {
+    if (localStream) {
+      localStream.getAudioTracks().forEach(t => { t.enabled = !isAudioMuted; });
+    }
+  }, [isAudioMuted, localStream]);
+
+  useEffect(() => {
+    if (localStream) {
+      localStream.getVideoTracks().forEach(t => { t.enabled = !isVideoMuted; });
+    }
+  }, [isVideoMuted, localStream]);
+
+  // Handle Video element assignment
+  useEffect(() => {
+    if (localStream) {
+      if (!isInHearing && lobbyVideoRef.current) {
+        lobbyVideoRef.current.srcObject = localStream;
+      }
+    }
+  }, [localStream, isInHearing]);
+
+  // Global cleanup on unmount
+  useEffect(() => {
+    return () => {
+        if (localStream) localStream.getTracks().forEach(t => t.stop());
+    };
+  }, [localStream]);
+
+  // --- ACTIONS ---
+  const toggleAudio = () => {
+    if (audioContextRef.current?.state === 'suspended') {
+        audioContextRef.current.resume();
+    }
+    setIsAudioMuted(!isAudioMuted);
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current) mediaRecorderRef.current.stop();
-    setIsRecording(false);
+  const toggleVideo = () => {
+    setIsVideoMuted(!isVideoMuted);
+  };
+
+  const establishLink = () => {
+    if (audioContextRef.current?.state === 'suspended') {
+        audioContextRef.current.resume();
+    }
+    setIsInHearing(true);
+    setSessionStartTime(Date.now());
+    
+    // Propagate muted/video state to tracks
+    if (localStream) {
+        localStream.getAudioTracks().forEach(t => t.enabled = !isAudioMuted);
+        localStream.getVideoTracks().forEach(t => t.enabled = !isVideoMuted);
+    }
+
+    if (recognitionRef.current) try { recognitionRef.current.start(); setIsTranscribing(true); } catch(e) {}
+    
+    setMessages(prev => [...prev, { id: Date.now(), sender: 'SYSTEM', content: `${currentUser?.name || 'User'} has established a secure link to the chamber.`, type: 'system', timestamp: new Date().toLocaleTimeString() }]);
+  };
+
+  const toggleRecording = () => {
+    if (!isRecording && localStream) {
+      recordedChunksRef.current = [];
+      const recorder = new MediaRecorder(localStream, { mimeType: 'video/webm' });
+      recorder.ondataavailable = e => e.data.size > 0 && recordedChunksRef.current.push(e.data);
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        setTempRecordingBlob(blob);
+        setIsSavePromptOpen(true);
+        setRecordingDuration(0);
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setIsRecordingPaused(false);
+      setRecordingDuration(0);
+      setMessages(prev => [...prev, { id: Date.now(), sender: 'SYSTEM', content: 'OFFICIAL RECORDING INITIATED.', type: 'system', timestamp: new Date().toLocaleTimeString() }]);
+    } else {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+      setIsRecordingPaused(false);
+    }
+  };
+
+  const pauseRecording = () => {
+    if (isRecording && mediaRecorderRef.current) {
+        if (isRecordingPaused) {
+            mediaRecorderRef.current.resume();
+            setIsRecordingPaused(false);
+        } else {
+            mediaRecorderRef.current.pause();
+            setIsRecordingPaused(true);
+        }
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const loadSavedRecordings = (database: IDBDatabase) => {
-    if (!database.objectStoreNames.contains('recordings')) {
-      console.warn("Recordings store not found yet");
-      return;
-    }
-    try {
-      const transaction = database.transaction(['recordings'], 'readonly');
-      const store = transaction.objectStore('recordings');
-      const request = store.getAll();
-      request.onsuccess = () => {
-        const records = request.result.map(rec => ({
-          ...rec,
-          url: URL.createObjectURL(rec.blob)
-        }));
-        setSavedRecordings(records.sort((a, b) => b.id - a.id));
-      };
-    } catch (e) {
-      console.error("Failed to start transaction:", e);
-    }
+    const transaction = database.transaction(['recordings'], 'readonly');
+    const request = transaction.objectStore('recordings').getAll();
+    request.onsuccess = () => {
+      setSavedRecordings(request.result.map(rec => ({ ...rec, url: URL.createObjectURL(rec.blob) })).sort((a, b) => b.id - a.id));
+    };
   };
 
-  const processSaveRecording = (shouldSave: boolean) => {
-    if (shouldSave && tempRecordingBlob && db) {
-      const recordingData = {
-        id: Date.now(),
-        name: `Hearing_Archive_${new Date().toLocaleDateString()}.webm`,
-        blob: tempRecordingBlob,
-        timestamp: new Date().toLocaleTimeString()
-      };
-
+  const handleSaveRecording = (save: boolean) => {
+    if (save && tempRecordingBlob && db) {
       const transaction = db.transaction(['recordings'], 'readwrite');
-      const store = transaction.objectStore('recordings');
-      store.add(recordingData);
-      
-      transaction.oncomplete = () => {
-        loadSavedRecordings(db);
-        setActiveTab('recordings');
-      };
+      transaction.objectStore('recordings').add({
+        id: Date.now(), name: `HEARING_LOG_${new Date().toISOString().slice(0,10)}.webm`, blob: tempRecordingBlob, timestamp: new Date().toLocaleTimeString()
+      });
+      transaction.oncomplete = () => loadSavedRecordings(db);
     }
     setTempRecordingBlob(null);
     setIsSavePromptOpen(false);
   };
 
-  const toggleBreakout = () => {
-    setIsBreakoutActive(!isBreakoutActive);
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      sender: 'SYSTEM',
-      content: !isBreakoutActive ? 'ENTERING PRIVATE BREAKOUT ROOM.' : 'RETURNING TO MAIN HEARING.',
-      type: 'system',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }]);
+  const handleEvidenceAction = (file: any) => {
+    setActiveEvidence(file);
+    setPresentationMode('split');
+    setMessages(prev => [...prev, { id: Date.now(), sender: 'SYSTEM', content: `EXHIBIT PRESENTED: ${file.name}.`, type: 'system', timestamp: new Date().toLocaleTimeString() }]);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'chat' | 'evidence') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const enterBreakout = (room: string) => {
+    setIsBreakoutActive(true);
+    setActiveBreakoutRoom(room);
+    setMessages(prev => [...prev, { id: Date.now(), sender: 'SYSTEM', content: `ENTERING BREAKOUT ROOM: ${room}.`, type: 'system', timestamp: new Date().toLocaleTimeString() }]);
+  };
 
-    const fileData = {
-      id: Date.now(),
-      name: file.name,
-      size: (file.size / 1024).toFixed(1) + ' KB',
-      type: file.type,
-      url: URL.createObjectURL(file),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
+  const leaveBreakout = () => {
+    setIsBreakoutActive(false);
+    setActiveBreakoutRoom(null);
+    setMessages(prev => [...prev, { id: Date.now(), sender: 'SYSTEM', content: 'RETURNED TO MAIN CHAMBER.', type: 'system', timestamp: new Date().toLocaleTimeString() }]);
+  };
 
-    if (target === 'chat') {
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        sender: currentUser?.name || 'You',
-        content: `Uploaded File: ${file.name}`,
-        file: fileData,
-        timestamp: fileData.timestamp
-      }]);
+  const handleScreenShare = async () => {
+    if (!isScreenSharing) {
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            screenStreamRef.current = stream;
+            setIsScreenSharing(true);
+            setPresentationMode('split');
+            
+            stream.getVideoTracks()[0].onended = () => {
+                setIsScreenSharing(false);
+                setPresentationMode('main');
+            };
+        } catch (err) {
+            console.error("Error sharing screen:", err);
+        }
     } else {
-      setEvidenceFiles(prev => [fileData, ...prev]);
-      setIsEvidenceOpen(true);
+        screenStreamRef.current?.getTracks().forEach(t => t.stop());
+        setIsScreenSharing(false);
+        setPresentationMode('main');
     }
-  };
-
-  const sendMessage = () => {
-    if (!chatInput.trim()) return;
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      sender: currentUser?.name || 'You',
-      content: chatInput,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }]);
-    setChatInput('');
   };
 
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#f3f4f6] flex flex-col font-sans text-slate-900">
-      <AnimatePresence mode="wait">
-        {!isInHearing ? (
-          <motion.div key="lobby" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="flex-1 flex flex-col min-h-screen">
-            <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-10 shadow-sm shrink-0 sticky top-0 z-[100]">
-               <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-lg"><Gavel size={24} /></div>
-                  <div>
-                    <h1 className="text-lg font-black text-slate-800 uppercase tracking-tighter">FDRE Court System</h1>
-                    <p className="text-[10px] font-bold text-emerald-600 uppercase">Virtual Hearing Portal</p>
-                  </div>
-               </div>
-                <div className="flex items-center gap-6">
-                   <ThemeToggle />
-                   <Link href="/archives" className="flex items-center gap-2 px-6 py-2.5 bg-emerald-50 text-emerald-700 font-bold rounded-xl text-xs hover:bg-emerald-100 transition-all border border-emerald-100"><FileText size={16} /> Memory Vault</Link>
-                   <button onClick={() => window.location.href = '/'} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs">Exit</button>
+    <RequireAccess allowedRoles={['SYSTEM_ADMIN', 'COURT_ADMIN', 'JUDGE', 'CLERK', 'LAWYER', 'PLAINTIFF', 'DEFENDANT']}>
+      <div className={`h-screen flex flex-col font-sans selection:bg-emerald-500/30 overflow-hidden ${!isInHearing ? 'bg-white' : 'bg-slate-50'}`}>
+        <AnimatePresence mode="wait">
+          {!isInHearing ? (
+            <motion.div 
+              key="lobby" 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="flex-1 flex flex-col"
+            >
+              <header className="h-16 px-8 flex items-center justify-between border-b border-gray-100 bg-white shadow-sm shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg"><Gavel size={20}/></div>
+                  <span className="text-xl font-bold text-slate-800 tracking-tight">Judicial Chamber Link</span>
                 </div>
-            </header>
-            
-            {/* Global Context Navigation */}
-            <nav className="nav-container sticky top-20 z-[90] bg-[#14532d] overflow-x-auto shadow-md shrink-0">
-              <div className="container mx-auto flex items-center h-16 px-6 gap-2">
-                {[
-                  { label: 'Dashboard', icon: <LayoutDashboard size={18} />, href: '/' },
-                  { label: 'Cases', icon: <Briefcase size={18} />, href: '/cases' },
-                  { label: 'Hearings', icon: <Gavel size={18} />, href: '/hearings' },
-                  { label: 'Documents', icon: <FileText size={18} />, href: '/documents' },
-                  { label: 'Virtual Hearing', icon: <Video size={18} />, href: '/virtual-hearing', active: true },
-                  { label: 'Users', icon: <Users size={18} />, href: '/users' },
-                  { label: 'Reports', icon: <BarChart3 size={18} />, href: '/reports' },
-                  { label: 'Messages', icon: <MessageSquare size={18} />, href: '/communication' },
-                  { label: 'Archives', icon: <Save size={18} />, href: '/archives' },
-                  { label: 'Settings', icon: <Settings size={18} />, href: '/settings' },
-                ].map((item) => (
-                  <Link 
-                    key={item.label} 
-                    href={item.href} 
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                      item.active ? 'bg-emerald-400 text-emerald-950 shadow-lg' : 'text-emerald-50 hover:bg-emerald-800'
-                    }`}
-                  >
-                    {item.icon} {item.label}
-                  </Link>
-                ))}
-              </div>
-            </nav>
+                <div className="flex items-center gap-6">
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm font-bold text-slate-800">{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest leading-none">{currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                  <div className="w-px h-8 bg-slate-200"></div>
+                  <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-700 border border-emerald-100 font-bold text-xs">{currentUser?.name?.[0] || 'U'}</div>
+                </div>
+              </header>
 
-            <div className="flex-1 container mx-auto flex items-center justify-center p-10">
-               <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-12 gap-12">
-                  <div className="lg:col-span-7 flex flex-col gap-8">
-                     <div className="aspect-video bg-slate-200 rounded-[3rem] border border-slate-300 relative overflow-hidden shadow-inner group">
-                        <video ref={lobbyVideoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover -scale-x-100" />
-                        {!mediaStreamRef.current && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100">
-                             <Camera size={48} className="text-slate-300 mb-4" />
-                             <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">Neural Link Standby</p>
-                          </div>
-                        )}
-                        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-4">
-                           <button onClick={toggleAudio} className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl ${isAudioMuted ? 'bg-red-500 text-white' : 'bg-white text-slate-600'}`}>
-                             {isAudioMuted ? <MicOff size={24} /> : <Mic size={24} />}
-                           </button>
-                           <button onClick={toggleVideo} className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl ${isVideoMuted ? 'bg-red-500 text-white' : 'bg-white text-slate-600'}`}>
-                             {isVideoMuted ? <VideoOff size={24} /> : <Video size={24} />}
-                           </button>
+              <div className="flex-1 flex items-center justify-center p-6 bg-slate-50/30 overflow-hidden">
+                <div className="max-w-6xl w-full flex flex-col lg:flex-row items-center gap-16">
+                  <div className="flex-1 w-full max-w-2xl space-y-6">
+                    <div className="aspect-video bg-slate-900 rounded-[3rem] relative overflow-hidden shadow-2xl group ring-1 ring-slate-200">
+                      <video 
+                        ref={lobbyVideoRef}
+                        autoPlay 
+                        playsInline 
+                        muted 
+                        className={`absolute inset-0 w-full h-full object-cover -scale-x-100 transition-opacity duration-500 ${isVideoMuted ? 'opacity-0' : 'opacity-100'}`} 
+                      />
+                      {isVideoMuted && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-slate-800">
+                          <div className="w-24 h-24 bg-slate-700/50 rounded-full flex items-center justify-center text-white/50"><VideoOff size={40}/></div>
                         </div>
-                     </div>
-                     <div className="grid grid-cols-3 gap-4">
-                        {[{ icon: <Shield />, label: 'Channel', val: 'SECURE' }, { icon: <Activity />, label: 'Node', val: 'ACTIVE' }, { icon: <Terminal />, label: 'Auth', val: 'PASS' }].map(item => (
-                          <div key={item.label} className="bg-white p-6 rounded-3xl border border-slate-200 flex flex-col items-center gap-2 shadow-sm">
-                             <div className="text-emerald-500">{item.icon}</div>
-                             <p className="text-[10px] font-black uppercase text-slate-400">{item.label}</p>
-                             <p className="text-xs font-black text-slate-800">{item.val}</p>
-                          </div>
-                        ))}
-                     </div>
-                  </div>
-                  <div className="lg:col-span-5 bg-white border border-slate-200 rounded-[3rem] p-12 shadow-2xl">
-                     <div className="mb-10 text-center">
-                        <h2 className="text-3xl font-black text-slate-800 mb-2">Enter Chamber</h2>
-                        <p className="text-slate-500 text-sm italic">Session: {sessionId}</p>
-                     </div>
-                     <button onClick={startMedia} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 rounded-2xl font-black text-sm uppercase shadow-xl transform active:scale-95 transition-all">Establish Link</button>
-                  </div>
-               </div>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div key="hearing" initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} className="flex-1 flex flex-col overflow-hidden bg-slate-50">
-            <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-[200]">
-               <div className="flex items-center gap-4">
-                  <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white shadow-md shadow-emerald-600/20"><Gavel size={16} /></div>
-                  <h2 className="text-xs font-black text-slate-800 uppercase tracking-tighter">Judiciary Session: CIV-2026-X8 {isBreakoutActive && '(PRIVATE)'}</h2>
-               </div>
-               <div className="flex items-center gap-4">
-                  {isRecording && <div className="flex items-center gap-2 px-3 py-1 bg-red-50 text-red-600 border border-red-100 rounded-full animate-pulse transition-all"><div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div><span className="text-[10px] font-black uppercase">Recording</span></div>}
-                  <button onClick={toggleBreakout} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all shadow-sm ${isBreakoutActive ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                    <DoorOpen size={14} /> {isBreakoutActive ? 'Leave Room' : 'Join Breakout'}
-                  </button>
-               </div>
-            </header>
+                      )}
+                      
+                      <div className="absolute bottom-10 left-10 flex items-center gap-1.5 h-10 bg-black/20 backdrop-blur-md px-4 rounded-2xl border border-white/10">
+                        <Mic size={14} className={isAudioMuted ? 'text-red-500' : 'text-emerald-500'} />
+                        <div className="flex items-center gap-1 h-3">
+                          {[...Array(8)].map((_, i) => (
+                            <motion.div 
+                              key={i} 
+                              animate={{ 
+                                height: isAudioMuted ? 4 : Math.max(4, (audioLevel / 255) * 20 * (0.5 + Math.random())) 
+                              }} 
+                              className={`w-1 rounded-full transition-colors ${isAudioMuted ? 'bg-red-500/30' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
 
-            <div className="flex-1 flex overflow-hidden">
-               <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden relative">
-                  {isBreakoutActive && (
-                    <div className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-2xl flex items-center justify-center">
-                       <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-6 text-center max-w-md border border-white/20">
-                          <Lock className="text-amber-500" size={56} />
-                          <div><h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter mb-2">Private Session</h3><p className="text-slate-500 text-sm leading-relaxed">Requirement 3.4: Cryptographic isolation active. Only participants in this room can see or hear you.</p></div>
-                          <button onClick={toggleBreakout} className="px-10 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase shadow-lg shadow-emerald-500/30">Resume Main Hearing</button>
-                       </div>
+                      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-4">
+                        <button onClick={toggleAudio} className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-xl backdrop-blur-md border ${isAudioMuted ? 'bg-red-500 border-red-400 text-white' : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'}`}>
+                          {isAudioMuted ? <MicOff size={24}/> : <Mic size={24}/>}
+                        </button>
+                        <button onClick={toggleVideo} className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-xl backdrop-blur-md border ${isVideoMuted ? 'bg-red-500 border-red-400 text-white' : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'}`}>
+                          {isVideoMuted ? <VideoOff size={24}/> : <Video size={24}/>}
+                        </button>
+                      </div>
                     </div>
-                  )}
-
-                  <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 grid-rows-2 gap-4">
-                     <div className="lg:col-span-2 lg:row-span-2 bg-slate-200 rounded-[2.5rem] border border-slate-300 relative overflow-hidden shadow-md">
-                        <div className="absolute inset-0 bg-slate-100 flex items-center justify-center"><div className="w-40 h-40 bg-white rounded-full flex items-center justify-center text-6xl shadow-2xl tracking-tighter">👨‍⚖️</div></div>
-                        <div className="absolute top-6 left-6 px-4 py-2 bg-white/90 backdrop-blur rounded-2xl border border-slate-200 shadow-sm flex items-center gap-2"><div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></div><span className="text-[10px] font-black text-slate-700 uppercase">Judge Alemu Bekele</span></div>
-                     </div>
-                     <div className="bg-slate-800 rounded-[2.5rem] border-4 border-emerald-500/20 relative overflow-hidden shadow-2xl overflow-hidden">
-                        <video ref={chamberVideoRef} autoPlay playsInline muted className={`w-full h-full object-cover transition-opacity duration-700 ${isVideoMuted ? 'opacity-0' : 'opacity-100'} -scale-x-100`} />
-                        {isVideoMuted && <div className="absolute inset-0 flex items-center justify-center text-white/5 text-[120px] font-black opacity-20">{currentUser?.name?.[0]}</div>}
-                        <div className="absolute top-6 left-6 px-3 py-1.5 bg-black/40 backdrop-blur-md text-white rounded-xl text-[8px] font-black uppercase tracking-[0.2em] border border-white/10">LOCAL LINK</div>
-                        {isAudioMuted && <div className="absolute top-6 right-6 p-2 bg-red-600 text-white rounded-xl shadow-lg shadow-red-500/30"><MicOff size={14} /></div>}
-                     </div>
-                     <div className="bg-white rounded-[2.5rem] border border-slate-200 flex flex-col items-center justify-center gap-4 shadow-sm relative group overflow-hidden">
-                        <div className="w-20 h-20 bg-blue-100/50 rounded-full flex items-center justify-center text-3xl shadow-inner group-hover:scale-110 transition-all">💼</div>
-                        <p className="text-xs font-black text-slate-800 uppercase tracking-widest px-4 py-1.5 bg-slate-50 rounded-full border border-slate-100">Defense Counsel</p>
-                        <div className="absolute bottom-4 right-4"><Activity size={12} className="text-emerald-500" /></div>
-                     </div>
+                    <div className="flex items-center justify-center gap-8 text-slate-400">
+                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Shield size={14} className="text-emerald-500"/> Secured Link</div>
+                      <div className="w-px h-4 bg-slate-200"></div>
+                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Users size={14}/> Participant Verification Ready</div>
+                    </div>
                   </div>
 
-                  <AnimatePresence>
-                    {isEvidenceOpen && (
-                      <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} className="h-2/5 bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-8 overflow-hidden flex flex-col z-[100]">
-                         <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-4 text-emerald-600"><Pipette size={28} className="transform rotate-12" /><h3 className="text-xl font-black text-slate-800 uppercase trackers-tighter">Evidence Vault (4.2)</h3></div>
-                            <button onClick={() => setIsEvidenceOpen(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all"><X size={20}/></button>
-                         </div>
-                         <div className="grid grid-cols-4 gap-6 flex-1 overflow-y-auto pr-4 scrollbar-hide">
-                            <div 
-                              onClick={() => evidenceInputRef.current?.click()}
-                              className="border-2 border-dashed border-emerald-500/30 rounded-[2rem] flex flex-col items-center justify-center gap-3 py-10 hover:border-emerald-500 hover:bg-emerald-50 transition-all cursor-pointer group bg-emerald-50/20"
-                            >
-                               <Plus size={40} className="text-emerald-500" />
-                               <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Inject Evidence</p>
-                            </div>
-                            {evidenceFiles.map(file => (
-                              <div key={file.id} className="border border-slate-200 rounded-[2rem] flex flex-col items-center justify-center gap-3 py-10 hover:border-emerald-500 transition-all cursor-pointer group relative bg-white shadow-sm">
-                                 <FileText size={40} className="text-slate-300 group-hover:text-emerald-500" />
-                                 <p className="text-[10px] font-black text-slate-800 uppercase tracking-widest px-4 text-center truncate w-full">{file.name}</p>
-                                 <p className="text-[8px] text-slate-400 font-bold uppercase">{file.size}</p>
-                                 <a href={file.url} download={file.name} className="absolute inset-0 opacity-0" />
-                                 <div className="absolute top-4 right-4 text-emerald-500"><CheckCircle2 size={12} /></div>
-                              </div>
-                            ))}
-                            {evidenceFiles.length === 0 && Array.from({ length: 3 }).map((_, i) => (
-                              <div key={i} className="border-2 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center gap-3 py-10 opacity-40">
-                                 <FileText size={40} className="text-slate-100" />
-                                 <p className="text-[10px] font-black text-slate-200 uppercase tracking-widest text-center">Empty Slot</p>
-                              </div>
-                            ))}
-                         </div>
-                         <input type="file" ref={evidenceInputRef} className="hidden" onChange={(e) => handleFileUpload(e, 'evidence')} />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-               </div>
-
-               <aside className="w-[420px] border-l border-slate-200 bg-white flex flex-col shrink-0 overflow-hidden">
-                  <div className="p-8 border-b border-slate-200">
-                     <div className="flex bg-slate-100 p-1.5 rounded-[1.5rem] shadow-inner">
-                        {[{ id: 'chat', label: 'Chat' }, { id: 'nodes', label: 'Nodes' }, { id: 'transcripts', label: 'Live' }, { id: 'recordings', label: 'Archives' }].map(tab => (
-                          <button key={tab.id} onClick={() => setActiveTab(tab.id as TabType)} className={`flex-1 py-3.5 rounded-2xl text-[10px] font-black uppercase transition-all tracking-wider ${activeTab === tab.id ? 'bg-white text-emerald-600 shadow-md border border-slate-100' : 'text-slate-400 hover:bg-slate-50'}`}>{tab.label}</button>
-                        ))}
-                     </div>
+                  <div className="lg:w-96 text-center lg:text-left space-y-10">
+                    <div className="space-y-4">
+                      <h2 className="text-5xl font-black text-slate-800 tracking-tighter leading-tight">Ready to join?</h2>
+                      <p className="text-slate-500 font-medium leading-relaxed">The hearing for <span className="text-emerald-700 font-bold underline decoration-emerald-500/20 underline-offset-4">Case #{sessionId}</span> is in progress.</p>
+                    </div>
+                    
+                    <div className="space-y-6">
+                      <button onClick={establishLink} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 rounded-2xl font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-emerald-600/30 transform hover:-translate-y-1 transition-all active:scale-95">Enter Chamber</button>
+                      <div className="p-6 bg-slate-50 border border-slate-100 rounded-2xl">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Participants Present (5)</p>
+                        <div className="flex -space-x-3 overflow-hidden justify-center lg:justify-start">
+                          {participants.map(p => (
+                            <div key={p.id} className="w-10 h-10 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-lg shadow-sm" title={p.name}>{p.avatar}</div>
+                          ))}
+                          <div className="w-10 h-10 rounded-full border-2 border-white bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black">+2</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-hide">
-                     {activeTab === 'chat' && messages.map(msg => (
-                        <div key={msg.id} className={`flex flex-col gap-1.5 ${msg.sender === (currentUser?.name || 'You') ? 'items-end' : 'items-start'}`}>
-                           <span className="text-[9px] font-black text-slate-400 uppercase px-3">{msg.sender}</span>
-                           <div className={`p-5 rounded-[2rem] text-sm font-semibold max-w-[90%] shadow-sm ${msg.sender === (currentUser?.name || 'You') ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-slate-50 text-slate-700 rounded-tl-none border border-slate-100'}`}>
-                             {msg.content}
-                             {msg.file && (
-                               <a href={msg.file.url} download={msg.file.name} className="mt-3 flex items-center gap-3 p-3 bg-black/10 rounded-2xl border border-white/10 hover:bg-black/20 transition-all">
-                                 <FileText size={18} />
-                                 <div className="flex-1 overflow-hidden">
-                                   <p className="text-[10px] font-black truncate">{msg.file.name}</p>
-                                   <p className="text-[8px] font-bold opacity-60 uppercase">{msg.file.size}</p>
-                                 </div>
-                                 <Download size={14} />
-                               </a>
-                             )}
-                           </div>
-                        </div>
-                     ))}
-                     {activeTab === 'nodes' && (
-                        <div className="space-y-4">
-                           <h3 className="text-[10px] font-black text-slate-800 uppercase trackers-widest opacity-40 mb-2">Participant Network</h3>
-                           {participants.map(p => (
-                             <div key={p.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                   <div className={`w-10 h-10 ${p.color} rounded-xl flex items-center justify-center text-lg text-white`}>{p.avatar}</div>
-                                   <div>
-                                      <p className="text-xs font-black text-slate-800">{p.name}</p>
-                                      <p className="text-[9px] font-bold text-slate-400 uppercase">{p.role}</p>
-                                   </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                   <div className={`w-2 h-2 rounded-full ${p.status === 'online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                                   <span className="text-[9px] font-black text-slate-400 uppercase">{p.status}</span>
-                                </div>
-                             </div>
-                           ))}
-                           <div className="mt-8 p-6 bg-emerald-600 rounded-[2rem] text-white">
-                              <p className="text-[10px] font-black uppercase mb-4 opacity-70">Sovereign Encryption</p>
-                              <div className="flex items-baseline gap-2 mb-2">
-                                 <h4 className="text-3xl font-black">4096</h4>
-                                 <span className="text-[10px] font-bold opacity-60 uppercase">Bit RSA</span>
-                              </div>
-                              <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
-                                 <motion.div initial={{ width: 0 }} animate={{ width: '100%' }} transition={{ duration: 10, repeat: Infinity }} className="h-full bg-white" />
-                              </div>
-                           </div>
-                        </div>
-                     )}
-                     {activeTab === 'recordings' && (
-                        <div className="space-y-4">
-                           {savedRecordings.length === 0 ? <div className="py-24 text-center opacity-30 flex flex-col gap-6"><Download size={48} className="mx-auto" /><p className="text-[10px] font-black uppercase tracking-[0.3em]">Judiciary Logs Empty</p></div> : savedRecordings.map(rec => (
-                             <div key={rec.id} className="p-5 bg-slate-50 border border-slate-100 rounded-3xl flex items-center justify-between hover:bg-emerald-50 hover:border-emerald-100 transition-all group"><div><p className="text-xs font-black text-slate-800 tracking-tight group-hover:text-emerald-700 transition-colors uppercase">{rec.name}</p><p className="text-[9px] text-slate-400 font-black mt-1 uppercase opacity-60 tracking-widest">{rec.timestamp}</p></div><a href={rec.url} download={rec.name} className="p-3 bg-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-500/30 hover:scale-110 active:scale-95 transition-all"><Download size={16} /></a></div>
-                           ))}
-                        </div>
-                     )}
-                     {activeTab === 'transcripts' && (
-                        <div className="space-y-4">
-                           {transcripts.length === 0 ? <div className="py-24 text-center opacity-20"><Activity size={48} className="mx-auto opacity-30 animate-pulse" /><p className="text-xs font-black uppercase mt-4">Awaiting Signal...</p></div> : transcripts.map(t => (
-                              <div key={t.id} className="p-5 bg-white rounded-3xl border border-slate-100 shadow-sm border-l-4 border-l-emerald-500">
-                                 <p className="text-[10px] font-black text-slate-800 mb-2 flex justify-between uppercase"><span>{t.speaker}</span><span className="text-emerald-600 opacity-60">[{t.timestamp}]</span></p>
-                                 <p className="text-xs italic leading-relaxed text-slate-600 font-medium">"{t.text}"</p>
-                              </div>
-                           ))}
-                        </div>
-                     )}
-                  </div>
-                  <div className="p-8 border-t border-slate-100 bg-slate-50/30">
-                     <div className="flex items-center gap-4 p-4 bg-white border border-slate-200 focus-within:border-emerald-500 rounded-[2rem] transition-all shadow-sm">
-                        <button onClick={() => fileInputRef.current?.click()} className="text-slate-400 hover:text-emerald-500 transition-colors"><Paperclip size={20}/></button>
-                        <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => handleFileUpload(e, 'chat')} />
-                        <input type="text" placeholder="Transmit data..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && sendMessage()} className="flex-1 bg-transparent outline-none text-xs font-bold text-slate-700" />
-                        <button onClick={sendMessage} className="p-3 bg-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-500/40 active:scale-90 transition-all"><Send size={16}/></button>
-                     </div>
-                  </div>
-               </aside>
-            </div>
-
-            <footer className="h-32 bg-white border-t border-slate-100 flex items-center justify-center gap-6 px-12 shrink-0 z-[200]">
-               <div className="flex items-center gap-5 bg-slate-100/30 backdrop-blur-3xl p-4 border border-slate-200/50 rounded-[3rem] shadow-2xl">
-                  <button onClick={toggleAudio} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-xl hover:-translate-y-1 active:scale-90 ${isAudioMuted ? 'bg-red-500 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}>{isAudioMuted ? <MicOff size={28} /> : <Mic size={28} />}</button>
-                  <button onClick={toggleVideo} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-xl hover:-translate-y-1 active:scale-90 ${isVideoMuted ? 'bg-red-500 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}>{isVideoMuted ? <VideoOff size={28} /> : <Video size={28} />}</button>
-                  <div className="w-px h-12 bg-slate-300/50 mx-2"></div>
-                  <button onClick={toggleScreenShare} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-xl hover:-translate-y-1 active:scale-90 ${isScreenSharing ? 'bg-blue-600 text-white' : 'bg-white text-slate-700'}`}><Monitor size={28} /></button>
-                  <button onClick={() => setIsEvidenceOpen(!isEvidenceOpen)} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-xl hover:-translate-y-1 active:scale-90 ${isEvidenceOpen ? 'bg-emerald-600 text-white' : 'bg-white text-slate-700'}`}><Pipette size={28} /></button>
-                  <button onClick={isRecording ? stopRecording : startRecording} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-xl hover:-translate-y-1 active:scale-90 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-white text-red-600'}`}>{isRecording ? <div className="w-6 h-6 bg-white rounded-sm" /> : <div className="w-6 h-6 bg-current rounded-full" />}</button>
-                  <div className="w-px h-12 bg-slate-300/50 mx-2"></div>
-                  <button onClick={stopMedia} className="w-24 h-16 bg-red-600 hover:bg-red-500 text-white rounded-[1.5rem] flex items-center justify-center active:scale-95 transition-all shadow-2xl shadow-red-500/30" title="Exit Court Chamber"><LogOut size={28} /></button>
-               </div>
-            </footer>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* --- SAVE RECORDING PROMPT (3.3) --- */}
-      <AnimatePresence>
-        {isSavePromptOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => processSaveRecording(false)} />
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-[3rem] p-12 max-w-lg w-full shadow-2xl relative z-10 border border-white/20">
-              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mb-8 mx-auto"><Save size={40} /></div>
-              <div className="text-center mb-10">
-                <h3 className="text-3xl font-black text-slate-800 mb-3 tracking-tighter uppercase">Save Hearing Log?</h3>
-                <p className="text-slate-500 text-sm font-medium leading-relaxed">Requirement 3.3: Would you like to archive this recording to the permanent hearing record? You can download it later from the Archives tab.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => processSaveRecording(false)} className="py-5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-xs uppercase transition-all flex items-center justify-center gap-2 group">
-                  <Trash2 size={16} className="group-hover:text-red-500 transition-colors" /> Discard
-                </button>
-                <button onClick={() => processSaveRecording(true)} className="py-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase shadow-xl shadow-emerald-500/30 transition-all flex items-center justify-center gap-2">
-                  <CheckCircle2 size={16} /> Save to Archive
-                </button>
+                </div>
               </div>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+          ) : (
+            <motion.div 
+              key="hearing" 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              className="flex-1 flex flex-col overflow-hidden max-h-screen relative bg-slate-50 text-slate-800"
+            >
+              {/* Top Status Bar (Floating when recording) */}
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] flex gap-3 pointer-events-none">
+                {isRecording && (
+                  <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex items-center gap-3 px-6 py-2.5 bg-red-600 text-white rounded-full shadow-2xl border border-red-500 pointer-events-auto">
+                    <div className={`w-3 h-3 bg-white rounded-full ${isRecordingPaused ? 'opacity-50' : 'animate-pulse'}`}></div>
+                    <span className="text-[11px] font-black uppercase tracking-widest">{isRecordingPaused ? 'Recording Paused' : 'Live Recording'}</span>
+                    <div className="w-px h-4 bg-white/20 mx-1"></div>
+                    <span className="text-sm font-black tabular-nums">{formatDuration(recordingDuration)}</span>
+                  </motion.div>
+                )}
+                {isBreakoutActive && (
+                  <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex items-center gap-3 px-6 py-2.5 bg-indigo-600 text-white rounded-full shadow-2xl border border-indigo-500 pointer-events-auto">
+                    <Shield size={14} />
+                    <span className="text-[11px] font-black uppercase tracking-widest">Private Breakout: {activeBreakoutRoom}</span>
+                    <button onClick={leaveBreakout} className="ml-2 p-1 hover:bg-white/20 rounded-md transition-colors"><X size={14}/></button>
+                  </motion.div>
+                )}
+              </div>
 
-      <Modal isOpen={modalConfig.isOpen} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} title={modalConfig.title} message={modalConfig.message} type={modalConfig.type} />
-    </div>
+              <header className="h-16 px-8 flex items-center justify-between border-b border-slate-200 bg-white/80 backdrop-blur-md shrink-0 z-50">
+                <div className="flex items-center gap-4">
+                  <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg">⚖️</div>
+                  <div>
+                    <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Judicial Portal • Case #{sessionId}</h2>
+                    <h1 className="text-sm font-black text-slate-800 tracking-tight leading-none">Federal First Instance Court • Chamber Link</h1>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-6">
+                  <div className="hidden md:flex flex-col items-end">
+                    <span className="text-xs font-black text-slate-800 tabular-nums">{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                  <div className="w-px h-8 bg-slate-200"></div>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => { setActiveTab('chat'); setIsSidebarOpen(!isSidebarOpen || activeTab !== 'chat'); }} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${isSidebarOpen && activeTab === 'chat' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><MessageSquare size={16}/></button>
+                    <button onClick={() => { setActiveTab('transcripts'); setIsSidebarOpen(!isSidebarOpen || activeTab !== 'transcripts'); }} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${isSidebarOpen && activeTab === 'transcripts' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><Activity size={16}/></button>
+                    <button onClick={() => { setActiveTab('recordings'); setIsSidebarOpen(!isSidebarOpen || activeTab !== 'recordings'); }} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${isSidebarOpen && activeTab === 'recordings' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><Save size={16}/></button>
+                  </div>
+                </div>
+              </header>
+
+              <div className="flex-1 flex overflow-hidden relative">
+                <main className="flex-1 p-6 flex flex-col gap-6 overflow-hidden relative">
+                  <div className={`flex-1 flex gap-6 min-h-0 ${presentationMode === 'split' ? 'flex-row' : 'flex-col'}`}>
+                    
+                    {/* Primary Presentation Area */}
+                    {presentationMode === 'split' && (
+                      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} id="presentation-container" className="flex-1 bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden relative shadow-2xl group flex flex-col ring-1 ring-emerald-500/10">
+                         <div className="absolute top-6 left-6 flex items-center gap-3 z-30">
+                            <div className={`p-3 rounded-xl text-white shadow-xl ${isScreenSharing ? 'bg-blue-600' : 'bg-emerald-600'}`}>
+                                {isScreenSharing ? <Monitor size={20}/> : <FileText size={20}/>}
+                            </div>
+                            <div className="px-4 py-2 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-xl shadow-xl">
+                                <p className="text-[10px] font-black text-slate-800 uppercase tracking-widest leading-none">{isScreenSharing ? 'Secure Presentation' : 'Evidence Exhibit'}</p>
+                                <p className={`text-[9px] font-bold uppercase mt-1 ${isScreenSharing ? 'text-blue-600' : 'text-emerald-600'}`}>{isScreenSharing ? 'Local Presentation Stream' : activeEvidence?.name}</p>
+                            </div>
+                         </div>
+                         <div className="absolute top-6 right-6 z-30 flex gap-2">
+                             <button onClick={() => {
+                                 const el = document.getElementById('presentation-container');
+                                 if (!document.fullscreenElement) {
+                                     el?.requestFullscreen().then(() => setIsFullscreen(true));
+                                 } else {
+                                     document.exitFullscreen().then(() => setIsFullscreen(false));
+                                 }
+                             }} title="Toggle Fullscreen" className="w-10 h-10 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 rounded-xl flex items-center justify-center transition-all shadow-lg">
+                                {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18}/>}
+                             </button>
+                             <button onClick={() => { setPresentationMode('main'); setIsScreenSharing(false); if(document.fullscreenElement) document.exitFullscreen(); }} className="w-10 h-10 bg-white hover:bg-red-50 text-slate-800 hover:text-red-600 border border-slate-200 rounded-xl flex items-center justify-center transition-all shadow-lg"><X size={18}/></button>
+                         </div>
+                         
+                         <div className="flex-1 bg-black flex items-center justify-center overflow-hidden">
+                            {isScreenSharing ? (
+                                <video 
+                                    ref={(el) => { if (el && screenStreamRef.current && el.srcObject !== screenStreamRef.current) el.srcObject = screenStreamRef.current; }}
+                                    autoPlay 
+                                    playsInline 
+                                    className="w-full h-full object-contain" 
+                                />
+                            ) : (
+                                <div className="w-full h-full bg-white rounded-3xl border border-slate-200 p-10 flex flex-col gap-6 shadow-inner relative overflow-hidden">
+                                     <div className="flex-1 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-4">
+                                        <FileText size={48} className="text-slate-200" />
+                                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.4em]">Propagating Visual Artifact...</p>
+                                     </div>
+                                </div>
+                            )}
+                         </div>
+                      </motion.div>
+                    )}
+
+                    {/* Participant Grid - Fixed-width sidebar prevents all card deformation */}
+                    <div className={`${presentationMode === 'split' ? 'w-[26rem] flex-shrink-0 flex flex-col gap-6 overflow-y-auto pr-2' : 'flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 overflow-y-auto content-start'} min-h-0 h-full w-full scrollbar-hide pb-24 px-2`}>
+                      
+                      {/* Local Participant Card (Equal to others) */}
+                      <div className="bg-slate-900 rounded-[2.5rem] relative overflow-hidden shadow-lg group ring-4 ring-white aspect-video w-full">
+                        <video 
+                          ref={(el) => { 
+                            if (el && localStream && el.srcObject !== localStream) el.srcObject = localStream; 
+                          }}
+                          autoPlay 
+                          playsInline 
+                          muted 
+                          className={`w-full h-full object-cover transition-opacity duration-500 ${isVideoMuted ? 'opacity-0' : 'opacity-100'} -scale-x-100`} 
+                        />
+                        {isVideoMuted && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
+                            <div className="w-20 h-20 bg-white rounded-full border border-slate-200 flex items-center justify-center text-3xl font-black text-slate-200 shadow-inner">{currentUser?.name?.[0] || 'U'}</div>
+                          </div>
+                        )}
+                        <div className="absolute top-5 right-5 z-20 h-8 px-3 bg-white/90 backdrop-blur-md rounded-lg flex items-center gap-2 border border-slate-200 shadow-lg">
+                           <Mic size={12} className={isAudioMuted ? 'text-red-500' : 'text-emerald-600'} />
+                           <div className="flex gap-0.5 items-end h-2.5">
+                              {[...Array(4)].map((_, i) => (
+                                <motion.div key={i} animate={{ height: isAudioMuted ? 4 : 4 + Math.random() * 8 }} className={`w-0.5 rounded-full ${isAudioMuted ? 'bg-red-200' : 'bg-emerald-500'}`} />
+                              ))}
+                           </div>
+                        </div>
+                        <div className="absolute bottom-5 left-5 px-4 py-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl flex items-center gap-2 z-20">
+                           <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                           <span className="text-[9px] font-black text-white uppercase tracking-widest">You (Host)</span>
+                        </div>
+                      </div>
+
+                      {/* Remote Participants */}
+                      {participants.slice(1).map(p => (
+                        <div key={p.id} className="aspect-video bg-white border border-slate-200 rounded-[2.5rem] relative overflow-hidden shadow-sm group hover:border-emerald-600/30 transition-all flex flex-col items-center justify-center gap-4">
+                           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-4xl shadow-inner group-hover:scale-110 transition-transform">{p.avatar}</div>
+                           <div className="flex flex-col items-center gap-1">
+                              <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">{p.name}</span>
+                              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight">{p.role}</span>
+                           </div>
+                           <div className="absolute top-5 right-5 text-red-500 bg-white p-1.5 rounded-lg border border-slate-100 shadow-sm">{p.isMuted && <MicOff size={12} />}</div>
+                           <div className="absolute bottom-5 left-5 px-4 py-2 bg-slate-100 border border-slate-200 rounded-xl flex items-center gap-2">
+                              <div className={`w-1.5 h-1.5 rounded-full ${p.status === 'online' ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Remote</span>
+                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Main Toolbar (Google Meet Style) */}
+                  <div className="h-24 bg-white border border-slate-200 rounded-[2.5rem] flex items-center justify-between px-10 shrink-0 shadow-2xl relative z-50">
+                    <div className="flex items-center gap-4">
+                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest tabular-nums">{currentTime.toLocaleTimeString([], { hour12: false })}</span>
+                       <div className="w-px h-6 bg-slate-100"></div>
+                       <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
+                          <Users size={14} className="text-slate-400" />
+                          <span className="text-[10px] font-black text-slate-800">{participants.length + 2}</span>
+                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                       <button onClick={toggleAudio} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isAudioMuted ? 'bg-red-500 text-white shadow-xl shadow-red-500/20' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                          {isAudioMuted ? <MicOff size={22}/> : <Mic size={22}/>}
+                       </button>
+                       <button onClick={toggleVideo} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isVideoMuted ? 'bg-red-500 text-white shadow-xl shadow-red-500/20' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                          {isVideoMuted ? <VideoOff size={22}/> : <Video size={22}/>}
+                       </button>
+                       <div className="w-px h-10 bg-slate-100 mx-1"></div>
+                       <button onClick={() => setIsEvidenceOpen(!isEvidenceOpen)} className={`h-14 px-8 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${isEvidenceOpen ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Vault</button>
+                       <button onClick={handleScreenShare} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScreenSharing ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Monitor size={22}/></button>
+                       <button onClick={() => setIsBreakoutModalOpen(true)} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-600 hover:text-white`}><Users size={22}/></button>
+                       
+                       <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 p-1.5 rounded-2xl ml-1">
+                          <button onClick={toggleRecording} className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all ${isRecording ? 'bg-red-600 text-white shadow-lg' : 'text-red-600 hover:bg-red-50'}`} title="Record Session">
+                             {isRecording ? <Square size={16} fill="currentColor"/> : <Circle size={16} fill="currentColor"/>}
+                          </button>
+                          {isRecording && (
+                             <button onClick={pauseRecording} className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all text-slate-500 hover:bg-white border border-transparent hover:border-slate-200`}>
+                                {isRecordingPaused ? <Play size={18} fill="currentColor"/> : <Pause size={18} fill="currentColor"/>}
+                             </button>
+                          )}
+                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                       <button className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 hover:bg-slate-200 flex items-center justify-center transition-all"><Hand size={20}/></button>
+                       <button onClick={() => setIsInHearing(false)} className="h-14 px-8 bg-red-600 hover:bg-red-700 text-white rounded-2xl flex items-center justify-center gap-3 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-red-600/20 active:scale-95 transition-all">Hang Up</button>
+                    </div>
+                  </div>
+                </main>
+
+                <AnimatePresence>
+                  {isSidebarOpen && (
+                    <motion.aside 
+                      initial={{ x: 450 }} 
+                      animate={{ x: 0 }} 
+                      exit={{ x: 450 }} 
+                      className="w-[450px] bg-white border-l border-slate-200 flex flex-col shrink-0 overflow-hidden z-[55] shadow-2xl"
+                    >
+                      <div className="p-10 border-b border-slate-100 bg-slate-50/50">
+                        <div className="flex bg-slate-200/50 p-1.5 rounded-2xl ring-1 ring-slate-200">
+                          {[{ id: 'chat', label: 'Protocol' }, { id: 'transcripts', label: 'Live Scribe' }, { id: 'recordings', label: 'Archive' }].map(tab => (
+                            <button key={tab.id} onClick={() => setActiveTab(tab.id as TabType)} className={`flex-1 py-4 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === tab.id ? 'bg-white text-emerald-600 shadow-md' : 'text-slate-500 hover:bg-slate-200/50'}`}>{tab.label}</button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto p-10 space-y-8 scrollbar-hide">
+                        {activeTab === 'chat' && (
+                          messages.map(msg => (
+                            <div key={msg.id} className={`flex flex-col gap-2 ${msg.sender === (currentUser?.name || 'Local Participant') ? 'items-end' : 'items-start'}`}>
+                              <div className="flex items-center gap-3 text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] px-2">
+                                {msg.sender === 'SYSTEM' ? <Shield size={10} className="text-emerald-500"/> : <User size={10}/>} {msg.sender}
+                              </div>
+                              <div className={`p-5 rounded-2xl text-xs font-bold leading-relaxed max-w-[90%] shadow-sm border ${msg.type === 'system' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 italic text-center w-full' : msg.sender === (currentUser?.name || 'Local Participant') ? 'bg-emerald-600 text-white border-emerald-500 rounded-tr-none' : 'bg-slate-50 text-slate-800 border-slate-200 rounded-tl-none'}`}>
+                                {msg.content}
+                              </div>
+                            </div>
+                          ))
+                        )}
+
+                        {activeTab === 'transcripts' && (
+                          <div className="space-y-8">
+                            {transcripts.length === 0 ? (
+                                <div className="text-center py-20">
+                                    <Activity size={48} className="mx-auto text-slate-200 mb-6" />
+                                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-loose">Waiting for judicial statements...<br/>Algorithm listening (R-400)</p>
+                                </div>
+                            ) : (
+                                transcripts.map(t => (
+                                    <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} key={t.id} className="p-6 bg-slate-50 border-l-4 border-l-emerald-600 rounded-2xl space-y-3">
+                                        <div className="flex justify-between items-center"><span className="text-[10px] font-black text-emerald-600 uppercase">{t.speaker}</span><span className="text-[8px] font-bold text-slate-400">[{t.timestamp}]</span></div>
+                                        <p className="text-xs leading-relaxed text-slate-600 font-medium italic opacity-90">"{t.text}"</p>
+                                    </motion.div>
+                                ))
+                            )}
+                          </div>
+                        )}
+
+                        {activeTab === 'recordings' && (
+                          <div className="space-y-6">
+                            {savedRecordings.map(rec => (
+                              <div key={rec.id} className="p-8 bg-slate-50 border border-slate-200 rounded-[2.5rem] flex items-center justify-between hover:bg-emerald-50 transition-all group shadow-sm">
+                                <div>
+                                  <p className="text-xs font-black text-slate-800 uppercase tracking-tight mb-1 truncate max-w-[200px]">{rec.name}</p>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase leading-none">{rec.timestamp}</p>
+                                </div>
+                                <a href={rec.url} download={rec.name} className="w-12 h-12 bg-white text-emerald-600 border border-slate-200 rounded-xl shadow-sm hover:shadow-md flex items-center justify-center transition-all"><Download size={18}/></a>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-10 border-t border-slate-100 bg-slate-50">
+                        <div className="flex items-center gap-4 bg-white border border-slate-200 focus-within:border-emerald-600/50 rounded-2xl p-2 transition-all shadow-sm">
+                          <button className="w-10 h-10 flex items-center justify-center text-slate-300 hover:text-emerald-600 transition-colors"><Paperclip size={18}/></button>
+                          <input type="text" placeholder="Protocol transmission..." className="flex-1 bg-transparent border-none outline-none text-xs font-bold text-slate-800 placeholder:text-slate-300" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && (setMessages([...messages, { id: Date.now(), sender: currentUser?.name || 'Local Participant', content: chatInput, timestamp: new Date().toLocaleTimeString() }]), setChatInput(''))} />
+                          <button className="w-10 h-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl shadow-lg active:scale-95 transition-all"><Send size={16}/></button>
+                        </div>
+                      </div>
+                    </motion.aside>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* BREAKOUT MANAGEMENT MODAL */}
+              <AnimatePresence>
+                {isBreakoutModalOpen && (
+                  <div className="fixed inset-0 z-[200] flex items-center justify-center p-12 bg-slate-900/40 backdrop-blur-md">
+                    <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="max-w-5xl w-full bg-white border border-slate-200 rounded-[4rem] p-16 shadow-2xl relative overflow-hidden">
+                      <div className="flex items-center justify-between mb-16">
+                        <div className="flex items-center gap-8">
+                          <div className="w-20 h-20 bg-emerald-600/10 rounded-[2rem] flex items-center justify-center text-emerald-600 shadow-inner"><Users size={36}/></div>
+                          <div>
+                            <h3 className="text-4xl font-black text-slate-800 uppercase tracking-tight leading-none">Breakout Sessions</h3>
+                            <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">Assign judicial nodes to private deliberation sub-chambers</p>
+                          </div>
+                        </div>
+                        <button onClick={() => setIsBreakoutModalOpen(false)} className="w-14 h-14 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center transition-all"><X size={24}/></button>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                        <div className="col-span-1 space-y-6">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Available Nodes</p>
+                            <div className="bg-slate-50/50 rounded-[2rem] border border-slate-200 p-6 space-y-4 max-h-[40vh] overflow-y-auto">
+                                {participants.map(p => (
+                                    <div key={p.id} className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl shadow-sm group">
+                                        <div className="flex items-center gap-4">
+                                            <div className="text-xl">{p.avatar}</div>
+                                            <span className="text-[11px] font-bold text-slate-800">{p.name}</span>
+                                        </div>
+                                        <button className="text-emerald-600 group-hover:bg-emerald-50 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all">Assign</button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        <div className="lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {breakoutRooms.map(room => (
+                                <div key={room.id} className="bg-white border-2 border-dashed border-slate-200 rounded-[3rem] p-10 flex flex-col gap-6 group hover:border-emerald-600/30 transition-all">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-black text-slate-800 uppercase tracking-widest">{room.name}</span>
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase">{room.participants.length > 0 ? `${room.participants.length} Active` : 'Empty'}</span>
+                                    </div>
+                                    <div className="flex-1 min-h-[150px] bg-slate-50/50 rounded-2xl flex flex-col items-center justify-center gap-4 border border-slate-100">
+                                        {room.participants.length === 0 ? (
+                                            <>
+                                                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-slate-200"><Plus size={24}/></div>
+                                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Drop Nodes Here</p>
+                                            </>
+                                        ) : (
+                                            <div className="flex -space-x-3 overflow-hidden">
+                                                {room.participants.map((pid: string) => {
+                                                    const p = participants.find(part => part.id === pid);
+                                                    return <div key={pid} className="w-12 h-12 rounded-full border-4 border-white bg-slate-200 flex items-center justify-center text-2xl shadow-sm">{p?.avatar}</div>
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button onClick={() => { enterBreakout(room.name); setIsBreakoutModalOpen(false); }} className="w-full py-4 bg-slate-100 group-hover:bg-emerald-600 group-hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">Open Session</button>
+                                </div>
+                            ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+
+              {/* MODALS INSIDE CHAMBER */}
+              <AnimatePresence>
+                {isEvidenceOpen && (
+                  <div className="fixed inset-0 z-[100] flex items-center justify-center p-12 bg-slate-900/20 backdrop-blur-xl">
+                    <motion.div initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }} className="max-w-6xl w-full bg-white border border-slate-200 rounded-[4rem] p-16 shadow-2xl relative overflow-hidden">
+                      <div className="flex items-center justify-between mb-16">
+                        <div className="flex items-center gap-8">
+                          <div className="w-20 h-20 bg-emerald-600/10 rounded-[2rem] flex items-center justify-center text-emerald-600 shadow-inner"><Pipette size={36}/></div>
+                          <div>
+                            <h3 className="text-4xl font-black text-slate-800 uppercase tracking-tight leading-none">Evidence Vault</h3>
+                            <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">Authorized digital exhibits for session propagation</p>
+                          </div>
+                        </div>
+                        <button onClick={() => setIsEvidenceOpen(false)} className="w-14 h-14 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center transition-all"><X size={24}/></button>
+                      </div>
+
+                      <div className="grid grid-cols-2 lg:grid-cols-5 gap-10 overflow-y-auto max-h-[50vh] pr-6 scrollbar-hide">
+                        <div onClick={() => evidenceInputRef.current?.click()} className="aspect-square border-4 border-dashed border-slate-100 rounded-[3rem] flex flex-col items-center justify-center gap-6 hover:border-emerald-600 hover:bg-emerald-50/50 transition-all cursor-pointer group">
+                          <Plus size={56} className="text-slate-200 group-hover:text-emerald-600 group-hover:scale-110 transition-all" />
+                          <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] group-hover:text-emerald-600 leading-none">Inject Exhibit</p>
+                        </div>
+                        {evidenceFiles.map(file => (
+                          <div key={file.id} onClick={() => handleEvidenceAction(file)} className="aspect-square bg-slate-50/50 border border-slate-200 rounded-[3rem] flex flex-col items-center justify-center gap-6 p-10 hover:border-emerald-600 hover:bg-white transition-all cursor-pointer relative group shadow-sm hover:shadow-md">
+                            <FileText size={64} className="text-slate-200 group-hover:text-emerald-600 transition-colors" />
+                            <p className="text-xs font-black text-slate-800 uppercase tracking-tight text-center line-clamp-1 leading-none">{file.name}</p>
+                            <div className="absolute bottom-10 right-10 text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity"><Maximize2 size={16}/></div>
+                          </div>
+                        ))}
+                      </div>
+                      <input type="file" ref={evidenceInputRef} className="hidden" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if(file) setEvidenceFiles(prev => [...prev, { id: Date.now(), name: file.name, size: (file.size/1024).toFixed(1)+'KB', url: URL.createObjectURL(file) }]);
+                      }} />
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+
+              <AnimatePresence>
+                {isSavePromptOpen && (
+                  <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/20 backdrop-blur-2xl">
+                    <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="max-w-md w-full bg-white border border-slate-200 rounded-[4rem] p-16 text-center shadow-2xl">
+                      <div className="w-24 h-24 bg-emerald-600/10 rounded-3xl flex items-center justify-center text-emerald-600 mx-auto mb-10 shadow-inner"><Save size={48}/></div>
+                      <h3 className="text-3xl font-black text-slate-800 uppercase tracking-tighter mb-4 leading-none">Archive Log?</h3>
+                      <p className="text-slate-500 text-sm leading-relaxed mb-12">Requirement 3.3: This recording will be finalized and uploaded to the official judicial repository for permanent archival.</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <button onClick={() => handleSaveRecording(false)} className="py-6 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">Discard</button>
+                        <button onClick={() => handleSaveRecording(true)} className="py-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-600/30 transition-all">Finalize Log</button>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <Modal 
+          isOpen={modalConfig.isOpen} 
+          onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} 
+          title={modalConfig.title} 
+          message={modalConfig.message} 
+          type={modalConfig.type} 
+        />
+      </div>
+    </RequireAccess>
   );
 }
