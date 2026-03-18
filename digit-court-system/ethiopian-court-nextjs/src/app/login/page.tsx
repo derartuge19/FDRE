@@ -6,11 +6,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Lock, User, ArrowRight, Fingerprint, Gavel, CheckCircle } from 'lucide-react';
 import Modal from '@/components/Modal';
 
+type PortalRole = 'ADMIN' | 'JUDGE' | 'CLERK' | 'LAWYER' | 'PLAINTIFF' | 'DEFENDANT';
+
 export default function Login() {
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [mounted, setMounted] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<PortalRole | null>(null);
   const [modalConfig, setModalConfig] = useState<{isOpen: boolean, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}>({
     isOpen: false,
     title: '',
@@ -19,7 +21,28 @@ export default function Login() {
   });
   const router = useRouter();
 
-  useEffect(() => setMounted(true), []);
+  const quickRoles: Array<{
+    role: PortalRole;
+    label: string;
+    subtitle: string;
+    username: string;
+    password: string;
+    landing: string;
+  }> = [
+    { role: 'ADMIN', label: 'System Admin', subtitle: 'Full governance', username: 'admin', password: 'admin123', landing: '/users' },
+    { role: 'JUDGE', label: 'Judge', subtitle: 'Judicial portal', username: 'judge', password: 'judge123', landing: '/hearings' },
+    { role: 'CLERK', label: 'Clerk', subtitle: 'Registry tools', username: 'clerk', password: 'clerk123', landing: '/hearings' },
+    { role: 'LAWYER', label: 'Lawyer', subtitle: 'Case access', username: 'lawyer', password: 'lawyer123', landing: '/cases' },
+    { role: 'PLAINTIFF', label: 'Plaintiff', subtitle: 'Participant view', username: 'plaintiff', password: 'user123', landing: '/cases' },
+    { role: 'DEFENDANT', label: 'Defendant', subtitle: 'Participant view', username: 'defendant', password: 'user123', landing: '/cases' },
+  ];
+
+  const pickRole = (r: (typeof quickRoles)[number]) => {
+    setSelectedRole(r.role);
+    setFormData({ username: r.username, password: r.password });
+    setError('');
+    localStorage.setItem('courtLanding', r.landing);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +63,9 @@ export default function Login() {
         return;
       }
 
+      // The backend returns user and token inside a 'data' object
+      const authData = data.data;
+
       if (data.requiresMFA) {
         setModalConfig({
           isOpen: true,
@@ -53,16 +79,19 @@ export default function Login() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...formData, mfaCode: '123456' })
         });
-        const mfaData = await mfaResponse.json();
-        if (!mfaData.success) {
+        const mfaResData = await mfaResponse.json();
+        
+        if (!mfaResData.success) {
           setError('MFA Validation Failed');
           return;
         }
-        localStorage.setItem('courtToken', mfaData.token);
-        localStorage.setItem('courtUser', JSON.stringify(mfaData.user));
+
+        const finalAuth = mfaResData.data;
+        localStorage.setItem('courtToken', finalAuth.token);
+        localStorage.setItem('courtUser', JSON.stringify(finalAuth.user));
       } else {
-        localStorage.setItem('courtToken', data.token);
-        localStorage.setItem('courtUser', JSON.stringify(data.user));
+        localStorage.setItem('courtToken', authData.token);
+        localStorage.setItem('courtUser', JSON.stringify(authData.user));
       }
       
       router.push('/');
@@ -72,8 +101,6 @@ export default function Login() {
       setIsLoading(false);
     }
   };
-
-  if (!mounted) return null;
 
   return (
     <div className="min-h-screen bg-[#0a0f0d] flex items-center justify-center p-4 overflow-hidden relative">
@@ -182,6 +209,46 @@ export default function Login() {
                  <p className="text-[8px] font-bold text-emerald-400/60 uppercase tracking-widest">System Active</p>
               </div>
            </div>
+        </div>
+
+        {/* Role-based portal entry */}
+        <div className="mt-10">
+          <div className="flex items-center justify-between mb-4 px-1">
+            <p className="text-[10px] font-black text-emerald-300/70 uppercase tracking-[0.35em]">
+              Select Portal Role
+            </p>
+            <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">
+              Dev accounts
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {quickRoles.map((r) => {
+              const active = selectedRole === r.role;
+              return (
+                <button
+                  key={r.role}
+                  type="button"
+                  onClick={() => pickRole(r)}
+                  className={[
+                    'text-left p-5 rounded-3xl border transition-all',
+                    active ? 'bg-emerald-500/15 border-emerald-400/40' : 'bg-white/5 border-white/5 hover:bg-white/10'
+                  ].join(' ')}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-black text-white uppercase tracking-widest">{r.label}</p>
+                      <p className="text-[9px] font-bold text-emerald-300/60 uppercase tracking-widest mt-1">{r.subtitle}</p>
+                    </div>
+                    <span className="text-[9px] font-black text-emerald-300/80">{active ? 'Selected' : 'Pick'}</span>
+                  </div>
+                  <div className="mt-4 text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                    {r.username} / {r.password}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <footer className="mt-16 text-center text-[10px] font-black text-gray-600 uppercase tracking-[0.5em]">

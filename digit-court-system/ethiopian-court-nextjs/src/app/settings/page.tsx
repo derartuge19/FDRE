@@ -5,7 +5,7 @@ import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '@/components/Modal';
-import { 
+import {  
   Settings as SettingsIcon, 
   User, 
   Lock, 
@@ -35,7 +35,10 @@ import {
   BarChart3,
   MessageSquare,
   LayoutDashboard
-} from 'lucide-react';
+ } from 'lucide-react';
+import Header from '@/components/Header';
+import Navigation from '@/components/Navigation';
+import RequireAccess from '@/components/RequireAccess';
 
 interface SystemSettings {
   systemName: string;
@@ -118,16 +121,20 @@ export default function Settings() {
     const userStr = localStorage.getItem('courtUser');
     const token = localStorage.getItem('courtToken');
     
-    if (userStr) {
-      const userData = JSON.parse(userStr);
-      setCurrentUser(userData.name || 'User');
-      setUserSettings(prev => ({
-        ...prev,
-        fullName: userData.name || 'User',
-        role: userData.roles?.[0] || 'User',
-        email: userData.email || '',
-        department: userData.department || 'N/A'
-      }));
+    if (userStr && userStr !== 'undefined') {
+      try {
+        const userData = JSON.parse(userStr);
+        setCurrentUser(userData.name || 'User');
+        setUserSettings(prev => ({
+          ...prev,
+          fullName: userData.name || 'User',
+          role: userData.roles?.[0] || 'User',
+          email: userData.email || '',
+          department: userData.department || 'N/A'
+        }));
+      } catch (e) {
+        console.error('Failed to parse user data');
+      }
     }
 
     const fetchSystemSettings = async () => {
@@ -258,78 +265,12 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f6f3]">
+    <RequireAccess allowedRoles={['SYSTEM_ADMIN', 'COURT_ADMIN', 'JUDGE', 'CLERK']}>
+    <div className="min-h-screen page-bg page-text">
       {/* Premium Navigation Header */}
-      <header className="header sticky top-0 z-[100] bg-emerald-950 border-b border-emerald-900 shadow-xl overflow-visible">
-        <div className="container mx-auto">
-          <div className="header-container flex items-center justify-between h-20 px-6">
-            <Link href="/" className="flex items-center gap-4 group">
-              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-lg ring-2 ring-emerald-400 group-hover:rotate-12 transition-all">⚖️</div>
-              <div className="text-white">
-                <div className="text-lg font-black tracking-tight leading-none mb-1">FDRE COURT SYSTEM</div>
-                <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.2em] opacity-80">Digital Administration</div>
-              </div>
-            </Link>
-            
-            <div className="flex items-center gap-6">
-              <ThemeToggle />
-              <button className="relative w-12 h-12 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center transition-all">
-                <Bell size={20} className="text-white" />
-                <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-950"></span>
-              </button>
-              
-              <div className="relative">
-                <button 
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-3 pl-2 pr-4 py-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 transition-all"
-                >
-                  <div className="w-8 h-8 rounded-full bg-emerald-400 flex items-center justify-center text-emerald-950 font-black">{currentUser[0]}</div>
-                  <span className="text-white font-bold text-sm hidden md:block">{currentUser}</span>
-                </button>
-                <AnimatePresence>
-                  {userMenuOpen && (
-                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="absolute right-0 top-full mt-3 w-64 bg-white rounded-3xl shadow-2xl border border-emerald-50 overflow-hidden z-[200]">
-                      <div className="p-4 bg-emerald-50/50 border-b border-emerald-100 font-bold text-xs uppercase text-emerald-600">Administrative Profile</div>
-                      <div className="p-2">
-                        <Link href="/profile" className="flex items-center gap-3 p-3 rounded-xl text-emerald-950 hover:bg-emerald-50 transition-colors"><User size={18} /> <span className="text-sm font-bold">Dossier</span></Link>
-                        <Link href="/settings" className="flex items-center gap-3 p-3 rounded-xl text-emerald-950 hover:bg-emerald-50 transition-colors"><SettingsIcon size={18} /> <span className="text-sm font-bold">Settings</span></Link>
-                        <button onClick={handleLogout} className="flex items-center gap-3 w-full p-3 rounded-xl text-red-600 hover:bg-red-50 transition-colors"><LogOut size={18} /> <span className="text-sm font-black uppercase tracking-widest text-left">Sign Out</span></button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
-      {/* Navigation */}
-      <nav className="nav-container sticky top-20 z-[90] bg-[#14532d] overflow-x-auto shadow-md">
-        <div className="container mx-auto flex items-center h-16 px-6 gap-2">
-          { [
-            { label: 'Dashboard', icon: <LayoutDashboard size={18} />, href: '/' },
-            { label: 'Cases', icon: <Briefcase size={18} />, href: '/cases' },
-            { label: 'Hearings', icon: <Gavel size={18} />, href: '/hearings' },
-            { label: 'Documents', icon: <FileText size={18} />, href: '/documents' },
-            { label: 'Virtual Hearing', icon: <Video size={18} />, href: '/virtual-hearing' },
-            { label: 'Users', icon: <Users size={18} />, href: '/users' },
-            { label: 'Reports', icon: <BarChart3 size={18} />, href: '/reports' },
-            { label: 'Messages', icon: <MessageSquare size={18} />, href: '/communication' },
-            { label: 'Settings', icon: <SettingsIcon size={18} />, href: '/settings', active: true },
-          ].map((item: any) => (
-            <Link 
-              key={item.label} 
-              href={item.href} 
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                item.active ? 'bg-emerald-400 text-emerald-950 shadow-lg' : 'text-emerald-50 hover:bg-emerald-800'
-              }`}
-            >
-              {item.icon} {item.label}
-            </Link>
-          )) }
-        </div>
-      </nav>
+      <Navigation />
 
       <main className="main-container scrollbar-hide">
         <div className="container mx-auto px-6 py-12">
@@ -341,13 +282,13 @@ export default function Settings() {
             className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12"
           >
             <div>
-              <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs uppercase tracking-widest mb-3">
-                <span className="bg-emerald-100 px-2 py-1 rounded">Admin</span>
+              <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-widest mb-3">
+                <span className="bg-emerald-500/10 px-2 py-1 rounded">Admin</span>
                 <span>/</span>
                 <span>Systems Control</span>
               </div>
-              <h1 className="text-5xl font-black text-gray-900 tracking-tighter mb-2">Configuration Hub</h1>
-              <p className="text-gray-500 font-medium text-lg max-w-xl">Optimize your judicial management platform with advanced administration tools.</p>
+              <h1 className="text-5xl font-black page-text tracking-tighter mb-2">Configuration Hub</h1>
+              <p className="text-secondary font-medium text-lg max-w-xl">Optimize your judicial management platform with advanced administration tools.</p>
             </div>
             
             <motion.button
@@ -380,10 +321,10 @@ export default function Settings() {
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-[2.5rem] shadow-2xl shadow-emerald-950/5 border border-emerald-50/50 p-4 sticky top-28"
+                className="card-bg rounded-[2.5rem] shadow-2xl shadow-emerald-950/5 border border-emerald-500/10 p-4 sticky top-28"
               >
-                <div className="px-6 py-6 border-b border-emerald-50 mb-4">
-                   <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Management Sections</p>
+                <div className="px-6 py-6 border-b border-emerald-500/10 mb-4">
+                   <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Management Sections</p>
                 </div>
                 <nav className="space-y-2">
                   {tabs.map((tab) => (
@@ -393,7 +334,7 @@ export default function Settings() {
                       className={`relative flex items-center w-full px-6 py-4 rounded-[1.5rem] transition-all duration-300 group overflow-hidden ${
                         activeTab === tab.id
                           ? 'bg-emerald-950 text-white shadow-xl shadow-emerald-950/10 translate-x-1'
-                          : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-950'
+                          : 'text-muted hover:bg-emerald-500/5 hover:text-emerald-500'
                       }`}
                     >
                       {activeTab === tab.id && (
@@ -749,5 +690,6 @@ export default function Settings() {
         <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
       </div>
     </div>
+    </RequireAccess>
   );
 }

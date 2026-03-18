@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
+import { 
   MessageSquare,
   Search,
   User,
@@ -34,7 +34,12 @@ import {
   File,
   Phone,
   ChevronDown,
-} from 'lucide-react';
+ } from 'lucide-react';
+import Header from '@/components/Header';
+import Navigation from '@/components/Navigation';
+import RequireAccess from '@/components/RequireAccess';
+import RoleBasedContent from '@/components/RoleBasedContent';
+import { useUserRole, useCurrentUser } from '@/hooks/useUserRole';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -248,96 +253,36 @@ export default function Communication() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#0c1410] text-white font-sans flex flex-col">
+    <RequireAccess allowedRoles={['SYSTEM_ADMIN', 'COURT_ADMIN', 'JUDGE', 'CLERK', 'LAWYER', 'PLAINTIFF', 'DEFENDANT', 'USER']}>
+    <div className="min-h-screen page-bg page-text font-sans flex flex-col">
 
       {/* ── Sticky Header ─────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-[100] h-20 bg-[#0c1410]/95 border-b border-emerald-900/30 backdrop-blur-xl flex items-center justify-between px-8 shrink-0">
-        <Link href="/" className="flex items-center gap-4 group">
-          <div className="w-11 h-11 bg-white rounded-2xl flex items-center justify-center text-xl shadow-lg group-hover:rotate-12 transition-all">⚖️</div>
-          <div>
-            <div className="text-base font-black tracking-tight leading-none mb-0.5">FDRE COURT SYSTEM</div>
-            <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.2em] opacity-70">Secure Communications</div>
-          </div>
-        </Link>
-
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-            <Lock size={13} className="text-emerald-400" />
-            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">End-to-End Encrypted</span>
-          </div>
-          <ThemeToggle />
-          <Link href="/notifications" className="relative w-10 h-10 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-center transition-all">
-            <Bell size={18} className="text-white" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-emerald-400 rounded-full border-2 border-[#0c1410]" />
-          </Link>
-          <div className="relative">
-            <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 transition-all">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-emerald-950 font-black text-sm">{(currentUser?.name || 'U')[0]}</div>
-              <span className="text-sm font-bold hidden md:block">{currentUser?.name || 'Court User'}</span>
-              <ChevronDown size={14} className="text-white/40" />
-            </button>
-            <AnimatePresence>
-              {userMenuOpen && (
-                <motion.div initial={{ opacity: 0, y: 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.96 }} className="absolute right-0 top-full mt-2 w-56 bg-[#1a2820] border border-emerald-900/50 rounded-2xl shadow-2xl overflow-hidden z-[200]">
-                  <div className="p-3 border-b border-white/5">
-                    <p className="text-[10px] font-black text-emerald-500 uppercase">Judicial Profile</p>
-                    <p className="text-sm font-bold text-white truncate">{currentUser?.name || 'Court User'}</p>
-                  </div>
-                  <div className="p-2">
-                    <Link href="/profile" className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/5 text-sm font-bold transition-colors"><User size={16} className="text-emerald-400" /> Dossier</Link>
-                    <Link href="/settings" className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/5 text-sm font-bold transition-colors"><Settings size={16} className="text-emerald-400" /> Settings</Link>
-                    <button onClick={handleLogout} className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-red-500/10 text-red-400 text-sm font-black text-left transition-colors"><LogOut size={16} /> Sign Out</button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* ── Global Nav ────────────────────────────────────────────────────── */}
-      <nav className="sticky top-20 z-[90] bg-[#14532d] overflow-x-auto shadow-md shrink-0">
-        <div className="flex items-center h-14 px-6 gap-1.5 min-w-max">
-          {[
-            { label: 'Dashboard', icon: <LayoutDashboard size={16} />, href: '/' },
-            { label: 'Cases', icon: <Briefcase size={16} />, href: '/cases' },
-            { label: 'Hearings', icon: <Gavel size={16} />, href: '/hearings' },
-            { label: 'Documents', icon: <FileText size={16} />, href: '/documents' },
-            { label: 'Virtual Hearing', icon: <Video size={16} />, href: '/virtual-hearing' },
-            { label: 'Users', icon: <Users size={16} />, href: '/users' },
-            { label: 'Reports', icon: <BarChart3 size={16} />, href: '/reports' },
-            { label: 'Messages', icon: <MessageSquare size={16} />, href: '/communication', active: true },
-            { label: 'Archives', icon: <Save size={16} />, href: '/archives' },
-            { label: 'Settings', icon: <Settings size={16} />, href: '/settings' },
-          ].map((item: any) => (
-            <Link key={item.label} href={item.href} className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${item.active ? 'bg-emerald-400 text-emerald-950 shadow-lg' : 'text-emerald-50 hover:bg-emerald-800'}`}>
-              {item.icon} {item.label}
-            </Link>
-          ))}
-        </div>
-      </nav>
+      <Navigation />
 
       {/* ── Main Layout: Sidebar + Chat ───────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 8.5rem)' }}>
 
         {/* Contacts Sidebar */}
-        <aside className="w-80 xl:w-96 flex flex-col border-r border-white/5 bg-[#0f1a14] shrink-0">
+        <aside className="w-80 xl:w-96 flex flex-col border-r border-emerald-500/10 card-bg shrink-0">
           {/* Sidebar Header */}
-          <div className="p-5 border-b border-white/5">
+          <div className="p-5 border-b border-emerald-500/10">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-black tracking-tight">Secure Channels</h2>
+              <h2 className="text-base font-black tracking-tight page-text">Secure Channels</h2>
               <button className="w-9 h-9 bg-emerald-500 hover:bg-emerald-400 rounded-xl flex items-center justify-center text-emerald-950 shadow-lg transition-all hover:scale-105">
                 <Plus size={18} />
               </button>
             </div>
             <div className="relative">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
               <input
                 type="text"
                 placeholder="Search participants..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm font-medium placeholder:text-white/20 outline-none focus:border-emerald-500 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-xl text-sm font-medium placeholder:text-muted outline-none focus:border-emerald-500 transition-all page-text"
               />
             </div>
           </div>
@@ -348,7 +293,7 @@ export default function Communication() {
               <button
                 key={contact.id}
                 onClick={() => setSelectedContact(contact)}
-                className={`w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-white/5 transition-all text-left ${selectedContact?.id === contact.id ? 'bg-emerald-500/10 border-r-2 border-emerald-400' : ''}`}
+                className={`w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-emerald-500/5 transition-all text-left ${selectedContact?.id === contact.id ? 'bg-emerald-500/10 border-r-2 border-emerald-400' : ''}`}
               >
                 <div className="relative shrink-0">
                   <div className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-lg">{contact.avatar}</div>
@@ -356,7 +301,7 @@ export default function Communication() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0.5">
-                    <span className="font-bold text-sm truncate">{contact.name}</span>
+                    <span className="font-bold text-sm truncate page-text">{contact.name}</span>
                     {contact.unreadCount > 0 && (
                       <span className="ml-2 shrink-0 min-w-[18px] h-4.5 bg-emerald-500 text-emerald-950 text-[10px] font-black rounded-full flex items-center justify-center px-1.5">
                         {contact.unreadCount}
@@ -364,7 +309,7 @@ export default function Communication() {
                     )}
                   </div>
                   <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-1">{contact.role}</div>
-                  <p className="text-xs text-white/30 truncate">{contact.lastMessage}</p>
+                  <p className="text-xs text-muted truncate">{contact.lastMessage}</p>
                 </div>
               </button>
             ))}
@@ -390,21 +335,21 @@ export default function Communication() {
           <div className="flex-1 flex flex-col min-w-0">
 
             {/* Chat Header */}
-            <div className="h-16 px-6 flex items-center justify-between border-b border-white/5 bg-[#0f1a14] shrink-0">
+            <div className="h-16 px-6 flex items-center justify-between border-b border-emerald-500/10 card-bg shrink-0">
               <div className="flex items-center gap-3.5">
                 <div className="relative">
                   <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-lg">{selectedContact.avatar}</div>
                   <div className="absolute -bottom-0.5 -right-0.5">{statusDot(selectedContact.status)}</div>
                 </div>
                 <div>
-                  <p className="font-black text-sm leading-none mb-0.5">{selectedContact.name}</p>
-                  <p className="text-[10px] text-white/40 font-bold">{selectedContact.status === 'online' ? 'Active Now' : selectedContact.lastSeen} · {selectedContact.role}</p>
+                  <p className="font-black text-sm leading-none mb-0.5 page-text">{selectedContact.name}</p>
+                  <p className="text-[10px] text-muted font-bold">{selectedContact.status === 'online' ? 'Active Now' : selectedContact.lastSeen} · {selectedContact.role}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button className="w-9 h-9 bg-white/5 hover:bg-white/10 rounded-xl flex items-center justify-center transition-all" title="Voice call"><Phone size={16} className="text-white/60" /></button>
-                <button className="w-9 h-9 bg-white/5 hover:bg-white/10 rounded-xl flex items-center justify-center transition-all" title="Video call"><Video size={16} className="text-white/60" /></button>
-                <button className="w-9 h-9 bg-white/5 hover:bg-white/10 rounded-xl flex items-center justify-center transition-all"><MoreVertical size={16} className="text-white/60" /></button>
+                <button className="w-9 h-9 bg-emerald-500/5 hover:bg-emerald-500/10 rounded-xl flex items-center justify-center transition-all" title="Voice call"><Phone size={16} className="text-secondary" /></button>
+                <button className="w-9 h-9 bg-emerald-500/5 hover:bg-emerald-500/10 rounded-xl flex items-center justify-center transition-all" title="Video call"><Video size={16} className="text-secondary" /></button>
+                <button className="w-9 h-9 bg-emerald-500/5 hover:bg-emerald-500/10 rounded-xl flex items-center justify-center transition-all"><MoreVertical size={16} className="text-secondary" /></button>
               </div>
             </div>
 
@@ -413,8 +358,8 @@ export default function Communication() {
               {currentThread.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <div className="w-16 h-16 bg-emerald-500/10 rounded-3xl flex items-center justify-center mb-4 text-3xl">{selectedContact.avatar}</div>
-                  <p className="font-black text-white/60 mb-1">{selectedContact.name}</p>
-                  <p className="text-xs text-white/30">Send the first secure message to this participant.</p>
+                  <p className="font-black text-secondary mb-1">{selectedContact.name}</p>
+                  <p className="text-xs text-muted">Send the first secure message to this participant.</p>
                 </div>
               )}
 
@@ -427,14 +372,14 @@ export default function Communication() {
                         {!msg.isSelf && (
                           <span className="text-[10px] font-black text-emerald-400 pl-1">{msg.senderName}</span>
                         )}
-                        <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.isSelf ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-white/8 border border-white/10 text-white/90 rounded-bl-sm'}`}>
+                        <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.isSelf ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-emerald-500/5 border border-emerald-500/20 page-text rounded-bl-sm'}`}>
                           {msg.content && <p>{msg.content}</p>}
                           {/* Attachments */}
                           {msg.attachments.length > 0 && (
                             <div className={`${msg.content ? 'mt-2' : ''} space-y-2`}>
                               {msg.attachments.map(att => (
-                                <a key={att.id} href={att.url} download={att.name} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all group ${msg.isSelf ? 'bg-emerald-700 border-emerald-500/30 hover:bg-emerald-600' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
-                                  <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center shrink-0">
+                                <a key={att.id} href={att.url} download={att.name} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all group ${msg.isSelf ? 'bg-emerald-700 border-emerald-500/30 hover:bg-emerald-600' : 'bg-emerald-500/5 border-emerald-500/10 hover:bg-emerald-500/10'}`}>
+                                  <div className="w-8 h-8 bg-black/10 rounded-lg flex items-center justify-center shrink-0">
                                     {fileIcon(att.type)}
                                   </div>
                                   <div className="flex-1 min-w-0">
@@ -448,7 +393,7 @@ export default function Communication() {
                           )}
                         </div>
                         <div className={`flex items-center gap-1.5 px-1 ${msg.isSelf ? 'justify-end' : 'justify-start'}`}>
-                          <span className="text-[10px] text-white/25">{msg.timestamp}</span>
+                          <span className="text-[10px] text-muted">{msg.timestamp}</span>
                           {msg.isSelf && (
                             <span title={msg.status === 'read' ? 'Read' : msg.status === 'delivered' ? 'Delivered' : 'Sent'}>
                               {statusIcon(msg.status)}
@@ -483,11 +428,11 @@ export default function Communication() {
             </AnimatePresence>
 
             {/* Message Input */}
-            <div className="px-6 py-4 border-t border-white/5 bg-[#0f1a14] shrink-0">
-              <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus-within:border-emerald-500/50 transition-all">
+            <div className="px-6 py-4 border-t border-emerald-500/10 card-bg shrink-0">
+              <div className="flex items-center gap-3 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl px-4 py-3 focus-within:border-emerald-500/50 transition-all">
                 <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFileSelect} />
-                <button onClick={() => fileInputRef.current?.click()} className="w-8 h-8 rounded-xl bg-white/5 hover:bg-emerald-500/20 border border-white/10 flex items-center justify-center transition-all shrink-0" title="Attach file">
-                  <Paperclip size={16} className="text-white/40 hover:text-emerald-400" />
+                <button onClick={() => fileInputRef.current?.click()} className="w-8 h-8 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/20 border border-emerald-500/10 flex items-center justify-center transition-all shrink-0" title="Attach file">
+                  <Paperclip size={16} className="text-muted hover:text-emerald-400" />
                 </button>
                 <input
                   type="text"
@@ -498,7 +443,7 @@ export default function Communication() {
                   className="flex-1 bg-transparent border-none outline-none text-sm font-medium placeholder:text-white/20"
                 />
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-[10px] text-white/20 font-bold hidden sm:block">Enter ↵</span>
+                  <span className="text-[10px] text-muted font-bold hidden sm:block">Enter ↵</span>
                   <button
                     onClick={sendMessage}
                     disabled={!newMessage.trim() && pendingFiles.length === 0}
@@ -508,7 +453,7 @@ export default function Communication() {
                   </button>
                 </div>
               </div>
-              <p className="text-center text-[10px] text-white/15 mt-2 font-medium">🔒 Messages are encrypted in transit and at rest · FDRE Judicial Communication Standard</p>
+              <p className="text-center text-[10px] text-muted/50 mt-2 font-medium">🔒 Messages are encrypted in transit and at rest · FDRE Judicial Communication Standard</p>
             </div>
           </div>
         ) : (
@@ -516,12 +461,13 @@ export default function Communication() {
             <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mb-6">
               <MessageSquare size={36} className="text-emerald-400" />
             </div>
-            <h3 className="text-xl font-black mb-2">Select a Channel</h3>
-            <p className="text-sm text-white/30 max-w-xs">Choose a judicial participant from the left panel to begin a secure, encrypted conversation.</p>
+            <h3 className="text-xl font-black mb-2 page-text">Select a Channel</h3>
+            <p className="text-sm text-muted max-w-xs">Choose a judicial participant from the left panel to begin a secure, encrypted conversation.</p>
           </div>
         )}
       </div>
 
     </div>
+    </RequireAccess>
   );
 }

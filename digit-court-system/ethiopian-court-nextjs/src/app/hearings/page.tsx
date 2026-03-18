@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {  
   Calendar, 
   Search, 
   Plus, 
@@ -28,7 +28,13 @@ import {
   MessageSquare,
   User,
   Save
-} from 'lucide-react';
+ } from 'lucide-react';
+import Header from '@/components/Header';
+import Navigation from '@/components/Navigation';
+import RequireAccess from '@/components/RequireAccess';
+import RoleBasedContent from '@/components/RoleBasedContent';
+import { useUserRole, useCurrentUser } from '@/hooks/useUserRole';
+import { filterHearingsByRole } from '@/lib/dataFilters';
 
 interface Hearing {
   id: string;
@@ -47,11 +53,14 @@ interface Hearing {
 }
 
 export default function Hearings() {
+  const userRole = useUserRole();
+  const currentUserData = useCurrentUser();
   const [currentUser, setCurrentUser] = useState('Loading...');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [hearings, setHearings] = useState<Hearing[]>([]);
+  const [allHearings, setAllHearings] = useState<Hearing[]>([]);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -59,9 +68,13 @@ export default function Hearings() {
     const userStr = localStorage.getItem('courtUser');
     const token = localStorage.getItem('courtToken');
     
-    if (userStr) {
-      const userData = JSON.parse(userStr);
-      setCurrentUser(userData.name || 'User');
+    if (userStr && userStr !== 'undefined') {
+      try {
+  const userData = JSON.parse(userStr);
+        setCurrentUser(userData.name || 'User');
+      } catch (e) {
+        console.error('Failed to parse user data');
+      }
     }
 
     const fetchHearings = async () => {
@@ -112,95 +125,26 @@ export default function Hearings() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#f8f6f3]">
-      <header className="header sticky top-0 z-[100] bg-emerald-950 border-b border-emerald-900 shadow-xl overflow-visible">
-        <div className="container mx-auto">
-          <div className="header-container flex items-center justify-between h-20 px-6">
-            <Link href="/" className="flex items-center gap-4 group">
-              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-lg ring-2 ring-emerald-400 group-hover:rotate-12 transition-all">⚖️</div>
-              <div className="text-white">
-                <div className="text-lg font-black tracking-tight leading-none mb-1">FDRE COURT SYSTEM</div>
-                <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.2em] opacity-80">Digital Administration</div>
-              </div>
-            </Link>
-
-            <div className="hidden lg:flex items-center gap-2 bg-white/5 border border-white/10 px-6 py-3 rounded-2xl w-96 backdrop-blur-md">
-              <Search size={18} className="text-white/40" />
-              <input type="text" placeholder="Search operational database..." className="bg-transparent border-none outline-none text-white text-sm w-full placeholder:text-white/20 font-medium" />
-            </div>
-
-            <div className="flex items-center gap-6">
-              <ThemeToggle />
-              <Link href="/notifications" className="relative w-12 h-12 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center transition-all">
-                <Bell size={20} className="text-white" />
-                <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-950"></span>
-              </Link>
-              
-              <div className="relative">
-                <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center gap-3 pl-2 pr-4 py-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 transition-all">
-                  <div className="w-8 h-8 rounded-full bg-emerald-400 flex items-center justify-center text-emerald-950 font-black">{currentUser[0]}</div>
-                  <span className="text-white font-bold text-sm hidden md:block">{currentUser}</span>
-                </button>
-                <AnimatePresence>
-                  {userMenuOpen && (
-                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="absolute right-0 top-full mt-3 w-64 bg-white rounded-3xl shadow-2xl border border-emerald-50 overflow-hidden z-[200]">
-                      <div className="p-4 bg-emerald-50/50 border-b border-emerald-100 font-bold text-xs uppercase text-emerald-600">Administrative Profile</div>
-                      <div className="p-2">
-                        <Link href="/profile" className="flex items-center gap-3 p-3 rounded-xl text-emerald-950 hover:bg-emerald-50 transition-colors"><User size={18} /> <span className="text-sm font-bold">Dossier</span></Link>
-                        <Link href="/settings" className="flex items-center gap-3 p-3 rounded-xl text-emerald-950 hover:bg-emerald-50 transition-colors"><Settings size={18} /> <span className="text-sm font-bold">Settings</span></Link>
-                        <button onClick={handleLogout} className="flex items-center gap-3 w-full p-3 rounded-xl text-red-600 hover:bg-red-50 transition-colors"><LogOut size={18} /> <span className="text-sm font-black uppercase tracking-widest text-left">Sign Out</span></button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <nav className="nav-container sticky top-20 z-[90] bg-[#14532d] overflow-x-auto shadow-md">
-        <div className="container mx-auto flex items-center h-16 px-6 gap-2">
-          {[
-            { label: 'Dashboard', icon: <Clock size={18} />, href: '/' },
-            { label: 'Cases', icon: <Briefcase size={18} />, href: '/cases' },
-            { label: 'Hearings', icon: <Gavel size={18} />, href: '/hearings', active: true },
-            { label: 'Documents', icon: <FileText size={18} />, href: '/documents' },
-            { label: 'Virtual Hearing', icon: <Video size={18} />, href: '/virtual-hearing' },
-            { label: 'Users', icon: <Users size={18} />, href: '/users' },
-            { label: 'Reports', icon: <BarChart3 size={18} />, href: '/reports' },
-            { label: 'Messages', icon: <MessageSquare size={18} />, href: '/communication' },
-            { label: 'Archives', icon: <Save size={18} />, href: '/archives' },
-            { label: 'Settings', icon: <Settings size={18} />, href: '/settings' },
-          ].map((item) => (
-            <Link 
-              key={item.label} 
-              href={item.href} 
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                item.active ? 'bg-emerald-400 text-emerald-950 shadow-lg' : 'text-emerald-50 hover:bg-emerald-800'
-              }`}
-            >
-              {item.icon} {item.label}
-            </Link>
-          ))}
-        </div>
-      </nav>
+    <RequireAccess allowedRoles={['SYSTEM_ADMIN', 'COURT_ADMIN', 'JUDGE', 'CLERK', 'LAWYER', 'PLAINTIFF', 'DEFENDANT', 'USER']}>
+    <div className="min-h-screen page-bg page-text">
+      <Header />
+      <Navigation />
 
       <main className="main-container py-10 px-6">
         <div className="container mx-auto">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 mb-12">
             <div>
-              <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs uppercase tracking-widest mb-3">
-                <span className="bg-emerald-100 px-2 py-1 rounded">Judicial</span>
+              <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-widest mb-3">
+                <span className="bg-emerald-500/10 px-2 py-1 rounded">Judicial</span>
                 <span>/</span>
                 <span>Calendar Services</span>
               </div>
-              <h1 className="text-5xl font-black text-gray-900 tracking-tighter mb-2">Hearing Orchestration</h1>
-              <p className="text-gray-500 font-medium text-lg">Centralized scheduling and management of physical and virtual court proceedings.</p>
+              <h1 className="text-5xl font-black page-text tracking-tighter mb-2">Hearing Orchestration</h1>
+              <p className="text-secondary font-medium text-lg">Centralized scheduling and management of physical and virtual court proceedings.</p>
             </div>
             <div className="flex gap-4">
-               <Link href="/virtual-hearing" className="flex items-center gap-3 px-8 py-5 bg-white border-2 border-gray-100 text-gray-900 rounded-[2rem] font-black text-sm uppercase tracking-widest hover:bg-gray-50 transition-all shadow-xl">
-                  <Video size={20} className="text-emerald-600" /> Start Virtual Session
+               <Link href="/virtual-hearing" className="flex items-center gap-3 px-8 py-5 card-bg border-2 border-emerald-500/10 page-text rounded-[2rem] font-black text-sm uppercase tracking-widest hover:bg-emerald-500/5 transition-all shadow-xl">
+                  <Video size={20} className="text-emerald-500" /> Start Virtual Session
                </Link>
                <button className="flex items-center gap-3 px-10 py-5 bg-emerald-950 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:bg-emerald-900 transition-all">
                   <Plus size={20} className="text-emerald-400" /> Schedule Proceeding
@@ -208,29 +152,29 @@ export default function Hearings() {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-[2.5rem] shadow-2xl shadow-emerald-950/5 border border-emerald-50/50 mb-10 flex flex-wrap items-center gap-4">
+          <div className="card-bg p-6 rounded-[2.5rem] shadow-2xl shadow-emerald-950/5 border border-emerald-500/10 mb-10 flex flex-wrap items-center gap-4">
             <div className="flex-1 min-w-[300px] relative group">
-               <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-500" size={20} />
+               <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-emerald-500" size={20} />
                <input 
                  type="text" 
                  placeholder="Search by Case, Hearing ID, or Assigned Judge..."
                  value={searchTerm}
                  onChange={(e) => setSearchTerm(e.target.value)}
-                 className="w-full pl-16 pr-8 py-5 bg-gray-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white outline-none rounded-2xl transition-all font-bold text-gray-800 shadow-inner"
+                 className="w-full pl-16 pr-8 py-5 bg-emerald-500/5 border-2 border-transparent focus:border-emerald-500 focus:bg-emerald-500/10 outline-none rounded-2xl transition-all font-bold page-text shadow-inner"
                />
             </div>
             <div className="flex items-center gap-3">
                <select 
                  value={filterStatus}
                  onChange={(e) => setFilterStatus(e.target.value)}
-                 className="px-6 py-5 bg-gray-50 border-2 border-transparent focus:border-emerald-500 rounded-2xl font-bold text-gray-700 outline-none appearance-none cursor-pointer shadow-inner"
+                 className="px-6 py-5 bg-emerald-500/5 border-2 border-transparent focus:border-emerald-500 rounded-2xl font-bold page-text outline-none appearance-none cursor-pointer shadow-inner"
                >
                  <option value="all">Every Proceeding</option>
                  <option value="scheduled">Confirmed Schedule</option>
                  <option value="in_progress">Live Transmission</option>
                  <option value="delayed">Pending Delay</option>
                </select>
-               <button className="p-5 bg-gray-900 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg"><Filter size={20} /></button>
+               <button className="p-5 bg-emerald-950 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg"><Filter size={20} /></button>
             </div>
           </div>
 
@@ -246,7 +190,7 @@ export default function Hearings() {
                >
                   <div className="p-10 flex-1">
                      <div className="flex justify-between items-start mb-8">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${hearing.isVirtual ? 'bg-blue-50 text-blue-500' : 'bg-翡翠-50 text-emerald-500'}`}>
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${hearing.isVirtual ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
                            {hearing.isVirtual ? <Video /> : <Gavel />}
                         </div>
                         <div className="flex flex-col items-end gap-2">
@@ -255,16 +199,16 @@ export default function Hearings() {
                              hearing.status === 'scheduled' ? 'bg-emerald-100 text-emerald-600' :
                              'bg-amber-100 text-amber-600'
                            }`}>{hearing.status.replace('_', ' ')}</span>
-                           <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">#{hearing.hearingNumber}</span>
+                           <span className="text-[10px] font-black text-muted uppercase tracking-widest">#{hearing.hearingNumber}</span>
                         </div>
                      </div>
 
                      <div className="mb-8">
-                        <h4 className="text-2xl font-black text-gray-900 tracking-tight line-clamp-2 mb-2 group-hover:text-emerald-950 leading-tight">{hearing.caseTitle}</h4>
+                        <h4 className="text-2xl font-black page-text tracking-tight line-clamp-2 mb-2 group-hover:text-emerald-500 leading-tight transition-colors">{hearing.caseTitle}</h4>
                         <div className="flex items-center gap-3">
-                           <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase tracking-tighter">{hearing.caseNumber}</span>
-                           <div className="w-1 h-1 bg-gray-200 rounded-full"></div>
-                           <span className="text-xs font-bold text-gray-400 capitalize">{hearing.type.replace('_', ' ')} Stage</span>
+                           <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded uppercase tracking-tighter">{hearing.caseNumber}</span>
+                           <div className="w-1 h-1 bg-emerald-500/20 rounded-full"></div>
+                           <span className="text-xs font-bold text-muted capitalize">{hearing.type.replace('_', ' ')} Stage</span>
                         </div>
                      </div>
 
@@ -314,5 +258,6 @@ export default function Hearings() {
         </div>
       </main>
     </div>
+    </RequireAccess>
   );
 }
