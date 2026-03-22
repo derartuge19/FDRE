@@ -13,7 +13,14 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedRole, setSelectedRole] = useState<PortalRole | null>(null);
-  const [modalConfig, setModalConfig] = useState<{isOpen: boolean, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}>({
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean, 
+    title: string, 
+    message: string, 
+    type: 'info' | 'success' | 'warning' | 'error' | 'security' | 'judicial',
+    confirmLabel?: string,
+    cancelLabel?: string
+  }>({
     isOpen: false,
     title: '',
     message: '',
@@ -122,7 +129,7 @@ export default function Login() {
           >
             <Gavel size={40} className="text-emerald-950" />
           </motion.div>
-          <h1 className="text-5xl font-black text-white tracking-tighter mb-4">FDRE COURT HUB</h1>
+          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tighter mb-4">FDRE COURT HUB</h1>
           <p className="text-emerald-400/60 font-black text-xs uppercase tracking-[0.4em] mb-2">Centralized Access Portal</p>
           <div className="flex justify-center gap-2 items-center text-gray-400">
              <Shield size={14} className="text-emerald-500" />
@@ -130,7 +137,7 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-[3.5rem] p-12 shadow-2xl">
+        <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-12 shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="space-y-4">
                <div className="flex items-center justify-between px-2">
@@ -142,7 +149,7 @@ export default function Login() {
                  required
                  value={formData.username}
                  onChange={(e) => setFormData({...formData, username: e.target.value})}
-                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 px-8 outline-none focus:border-emerald-500/50 focus:bg-white/10 transition-all font-bold text-emerald-50 text-lg"
+                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 md:py-5 px-6 md:px-8 outline-none focus:border-emerald-500/50 focus:bg-white/10 transition-all font-bold text-emerald-50 text-base md:text-lg"
                  placeholder="e.g. administrator"
                />
             </div>
@@ -157,7 +164,7 @@ export default function Login() {
                  required
                  value={formData.password}
                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 px-8 outline-none focus:border-emerald-500/50 focus:bg-white/10 transition-all font-bold text-emerald-50 text-lg tracking-[0.5em]"
+                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 md:py-5 px-6 md:px-8 outline-none focus:border-emerald-500/50 focus:bg-white/10 transition-all font-bold text-emerald-50 text-base md:text-lg tracking-[0.5em]"
                  placeholder="••••••••"
                />
             </div>
@@ -194,7 +201,7 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="mt-12 grid grid-cols-2 gap-6">
+        <div className="mt-8 md:mt-12 grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
            <div className="bg-white/5 p-6 rounded-3xl border border-white/5 flex items-center gap-4 group hover:bg-white/10 transition-all cursor-pointer">
               <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500"><Fingerprint size={24} /></div>
               <div>
@@ -222,7 +229,7 @@ export default function Login() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {quickRoles.map((r) => {
               const active = selectedRole === r.role;
               return (

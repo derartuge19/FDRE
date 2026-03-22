@@ -56,7 +56,14 @@ export default function Users() {
   const [filterRole, setFilterRole] = useState('all');
   const [users, setUsers] = useState<User[]>([]);
   const [mounted, setMounted] = useState(false);
-  const [modalConfig, setModalConfig] = useState<{isOpen: boolean, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}>({
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean, 
+    title: string, 
+    message: string, 
+    type: 'info' | 'success' | 'warning' | 'error' | 'security' | 'judicial',
+    confirmLabel?: string,
+    cancelLabel?: string
+  }>({
     isOpen: false,
     title: '',
     message: '',

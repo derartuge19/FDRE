@@ -22,16 +22,20 @@ export default function RoleBasedQuickActions() {
 
   const roleActions = {
     SYSTEM_ADMIN: [
-      { icon: <Users size={20} />, label: 'Manage Users', href: '/users', color: 'bg-blue-500' },
-      { icon: <Shield size={20} />, label: 'Security Settings', href: '/security', color: 'bg-red-500' },
-      { icon: <Settings size={20} />, label: 'System Config', href: '/settings', color: 'bg-gray-500' },
-      { icon: <BarChart3 size={20} />, label: 'View Reports', href: '/reports', color: 'bg-emerald-500' }
+      { icon: <Users size={20} />, label: 'Manage Users', href: '/users', color: 'bg-blue-600' },
+      { icon: <Plus size={20} />, label: 'File Case', href: '/cases', color: 'bg-emerald-600' },
+      { icon: <Calendar size={20} />, label: 'Schedule Hearing', href: '/schedule', color: 'bg-indigo-600' },
+      { icon: <Shield size={20} />, label: 'System Security', href: '/security', color: 'bg-red-600' },
+      { icon: <BarChart3 size={20} />, label: 'Analytics', href: '/reports', color: 'bg-amber-600' },
+      { icon: <Video size={20} />, label: 'Virtual Hearing', href: '/virtual-hearing', color: 'bg-purple-600' }
     ],
     COURT_ADMIN: [
-      { icon: <Plus size={20} />, label: 'Register Case', href: '/cases', color: 'bg-emerald-500' },
-      { icon: <Calendar size={20} />, label: 'Schedule Hearing', href: '/schedule', color: 'bg-blue-500' },
-      { icon: <Users size={20} />, label: 'Manage Staff', href: '/users', color: 'bg-purple-500' },
-      { icon: <BarChart3 size={20} />, label: 'View Reports', href: '/reports', color: 'bg-amber-500' }
+      { icon: <Users size={20} />, label: 'Manage Staff', href: '/users', color: 'bg-blue-600' },
+      { icon: <Plus size={20} />, label: 'Register Case', href: '/cases', color: 'bg-emerald-600' },
+      { icon: <Calendar size={20} />, label: 'Schedule Hearing', href: '/schedule', color: 'bg-indigo-600' },
+      { icon: <Shield size={20} />, label: 'Court Security', href: '/security', color: 'bg-red-600' },
+      { icon: <BarChart3 size={20} />, label: 'Reports', href: '/reports', color: 'bg-amber-600' },
+      { icon: <Video size={20} />, label: 'Virtual Hearing', href: '/virtual-hearing', color: 'bg-purple-600' }
     ],
     JUDGE: [
       { icon: <Gavel size={20} />, label: 'My Cases', href: '/cases', color: 'bg-amber-600' },
@@ -72,7 +76,7 @@ export default function RoleBasedQuickActions() {
   const actions = roleActions[userRole] || roleActions.USER;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
       {actions.map((action, idx) => (
         <Link
           key={idx}

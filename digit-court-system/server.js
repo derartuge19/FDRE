@@ -56,7 +56,7 @@ app.use(limiter);
 // Stricter rate limiting for auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 auth requests per windowMs
+  max: 50, // increased limit for development
   message: {
     success: false,
     message: 'Too many authentication attempts, please try again later.'
@@ -65,7 +65,7 @@ const authLimiter = rateLimit({
 
 // CORS configuration
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://127.0.0.1:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -101,102 +101,100 @@ const upload = multer({
   }
 });
 
-// Create uploads directory if it doesn't exist
-if (!fs.existsSync('uploads')) {
-  fs.mkdirSync('uploads');
-}
+// Ensure directories exist
+const uploadDirPath = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDirPath)) fs.mkdirSync(uploadDirPath, { recursive: true });
+
+const recordingsDirPath = path.join(__dirname, 'recordings');
+if (!fs.existsSync(recordingsDirPath)) fs.mkdirSync(recordingsDirPath, { recursive: true });
+
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/recordings', express.static(path.join(__dirname, 'recordings')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Generic File Upload Endpoint
+app.post('/api/upload', upload.array('files'), (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ success: false, message: 'No files uploaded' });
+  }
+  const files = req.files.map(f => ({
+    name: f.originalname,
+    filename: f.filename,
+    size: f.size,
+    type: f.mimetype,
+    url: `http://localhost:5173/uploads/${f.filename}`
+  }));
+  res.json({ success: true, files });
+});
 
 // Mock user database for authentication
 const users = [
   {
-    id: 'judge-alemu',
-    username: 'judge.alemu',
-    password: 'Judge123!', // In production, use proper hashing
-    name: 'Judge Alemu Bekele',
-    email: 'a.bekele@court.gov.et',
-    roles: ['judge', 'court_admin'],
-    permissions: ['case_management', 'hearing_control', 'virtual_hearing', 'user_management', 'reporting', 'system_config'],
-    mfaEnabled: true,
-    mfaSecret: '123456', // In production, use proper MFA
-    isActive: true,
-    lastLogin: new Date().toISOString(),
-    failedAttempts: 0,
-    isLocked: false
-  },
-  {
-    id: 'lawyer-sara',
-    username: 'lawyer.sara',
-    password: 'Lawyer123!',
-    name: 'Lawyer Sara Ahmed',
-    email: 's.ahmed@lawfirm.et',
-    roles: ['lawyer'],
-    permissions: ['case_management', 'virtual_hearing', 'communication'],
-    mfaEnabled: true,
-    mfaSecret: '123456',
-    isActive: true,
-    lastLogin: new Date().toISOString(),
-    failedAttempts: 0,
-    isLocked: false
-  },
-  {
     id: 'admin-system',
-    username: 'admin.system',
-    password: 'Admin123!',
+    username: 'admin',
+    password: 'admin123',
     name: 'System Administrator',
     email: 'admin@court.gov.et',
     roles: ['admin'],
     permissions: ['user_management', 'case_management', 'hearing_control', 'virtual_hearing', 'communication', 'reporting', 'system_config', 'security'],
-    mfaEnabled: true,
-    mfaSecret: '123456',
     isActive: true,
-    lastLogin: new Date().toISOString(),
-    failedAttempts: 0,
-    isLocked: false
+    lastLogin: new Date().toISOString()
+  },
+  {
+    id: 'judge-alemu',
+    username: 'judge',
+    password: 'judge123',
+    name: 'Judge Alemu Bekele',
+    email: 'a.bekele@court.gov.et',
+    roles: ['judge'],
+    permissions: ['case_management', 'hearing_control', 'virtual_hearing', 'reporting'],
+    isActive: true,
+    lastLogin: new Date().toISOString()
   },
   {
     id: 'clerk-mohammed',
-    username: 'clerk.mohammed',
-    password: 'Clerk123!',
+    username: 'clerk',
+    password: 'clerk123',
     name: 'Clerk Mohammed Hassan',
     email: 'm.hassan@court.gov.et',
     roles: ['clerk'],
-    permissions: ['case_management', 'communication'],
-    mfaEnabled: false,
-    mfaSecret: '123456',
+    permissions: ['case_management', 'document_verification', 'record_keeping'],
     isActive: true,
-    lastLogin: new Date().toISOString(),
-    failedAttempts: 0,
-    isLocked: false
+    lastLogin: new Date().toISOString()
+  },
+  {
+    id: 'lawyer-sara',
+    username: 'lawyer',
+    password: 'lawyer123',
+    name: 'Lawyer Sara Ahmed',
+    email: 's.ahmed@lawfirm.et',
+    roles: ['lawyer'],
+    permissions: ['case_filing', 'document_submission', 'virtual_hearing'],
+    isActive: true,
+    lastLogin: new Date().toISOString()
   },
   {
     id: 'plaintiff-john',
-    username: 'plaintiff.john',
-    password: 'User123!',
-    name: 'John Doe',
+    username: 'plaintiff',
+    password: 'user123',
+    name: 'John Doe (Plaintiff)',
     email: 'john.doe@email.com',
     roles: ['plaintiff'],
-    permissions: ['case_management', 'virtual_hearing'],
-    mfaEnabled: false,
-    mfaSecret: '123456',
+    permissions: ['case_tracking', 'document_upload', 'virtual_hearing'],
     isActive: true,
-    lastLogin: new Date().toISOString(),
-    failedAttempts: 0,
-    isLocked: false
+    lastLogin: new Date().toISOString()
   },
   {
-    id: 'lawyer-robert',
-    username: 'lawyer.robert',
-    password: 'Lawyer123!',
-    name: 'Lawyer Robert Johnson',
-    email: 'r.johnson@lawfirm.et',
-    roles: ['lawyer'],
-    permissions: ['case_management', 'virtual_hearing', 'communication'],
-    mfaEnabled: true,
-    mfaSecret: '123456',
+    id: 'defendant-abel',
+    username: 'defendant',
+    password: 'user123',
+    name: 'Abel Tesfaye (Defendant)',
+    email: 'abel.t@email.com',
+    roles: ['defendant'],
+    permissions: ['case_response', 'document_submission', 'virtual_hearing'],
     isActive: true,
-    lastLogin: new Date().toISOString(),
-    failedAttempts: 0,
-    isLocked: false
+    lastLogin: new Date().toISOString()
   }
 ];
 
@@ -284,10 +282,10 @@ wss.on('connection', (ws, req) => {
     connectedAt: new Date().toISOString()
   });
   
-  ws.on('message', (message) => {
+  ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
-      handleWebSocketMessage(connectionId, data);
+      await handleWebSocketMessage(connectionId, data);
     } catch (error) {
       console.error('Invalid WebSocket message:', error);
     }
@@ -328,7 +326,7 @@ wss.on('connection', (ws, req) => {
   }));
 });
 
-function handleWebSocketMessage(connectionId, data) {
+async function handleWebSocketMessage(connectionId, data) {
   const connection = activeConnections.get(connectionId);
   if (!connection) return;
   
@@ -369,49 +367,143 @@ function handleWebSocketMessage(connectionId, data) {
           }
         });
         
-        const message = {
-          type: 'chat_message',
-          messageId: data.messageId || Date.now(),
-          senderId: connection.userId,
-          senderName: connection.userName,
+        const messageData = {
+          sender_id: connection.userId,
+          recipient_id: data.recipientId,
           content: data.content,
-          timestamp: new Date().toISOString(),
+          attachments: data.attachments || [],
+          status: 'sent'
+        };
+
+        // Persist to database
+        const savedMessage = await hearingDatabase.createMessage(messageData);
+        
+        const chatMessage = {
+          type: 'chat_message',
+          id: savedMessage.id,
+          senderId: savedMessage.sender_id,
+          senderName: connection.userName,
+          content: savedMessage.content,
+          timestamp: savedMessage.timestamp,
+          attachments: savedMessage.attachments,
+          status: savedMessage.status,
           encrypted: data.encrypted || false
         };
         
         // Send to recipient if online
         if (recipientConnection && recipientConnection.ws.readyState === WebSocket.OPEN) {
-          recipientConnection.ws.send(JSON.stringify(message));
+          recipientConnection.ws.send(JSON.stringify(chatMessage));
           console.log(`📤 Message sent from ${connection.userName} to ${data.recipientId}`);
+          
+          // Update status to delivered
+          await hearingDatabase.updateMessage(savedMessage.id, { status: 'delivered' });
+          chatMessage.status = 'delivered';
           
           // Send delivery confirmation back to sender
           connection.ws.send(JSON.stringify({
             type: 'message_delivered',
-            messageId: message.messageId,
+            id: savedMessage.id,
             recipientId: data.recipientId,
             timestamp: new Date().toISOString()
           }));
         } else {
-          console.log(`📪 Recipient ${data.recipientId} is offline, message queued`);
-          // Send offline notification back to sender
+          console.log(`📪 Recipient ${data.recipientId} is offline, message stored`);
+          // Notify sender it was stored
           connection.ws.send(JSON.stringify({
-            type: 'message_queued',
-            messageId: data.messageId,
+            type: 'message_stored',
+            id: savedMessage.id,
             recipientId: data.recipientId,
             timestamp: new Date().toISOString()
           }));
         }
-      } else {
-        // Room-based message (existing functionality)
-        sendMessageToRoom(connectionId, data.roomId, {
-          type: 'chat_message',
-          senderId: connection.userId,
-          senderName: connection.userName,
-          content: data.content,
+        
+        // Always send copy back to sender for sync
+        connection.ws.send(JSON.stringify({
+          ...chatMessage,
+          recipientId: data.recipientId,
+          isSelf: true
+        }));
+      }
+      break;
+
+    case 'fetch_messages':
+      try {
+        const history = await hearingDatabase.getMessages({
+          sender_id: connection.userId,
+          recipient_id: data.recipientId,
+          limit: data.limit || 50
+        });
+        
+        connection.ws.send(JSON.stringify({
+          type: 'message_history',
+          recipientId: data.recipientId,
+          messages: history.map(m => ({
+            id: m.id,
+            senderId: m.sender_id,
+            senderName: m.sender_name,
+            content: m.content,
+            timestamp: m.timestamp,
+            attachments: m.attachments,
+            status: m.status,
+            isSelf: m.sender_id === connection.userId
+          }))
+        }));
+      } catch (error) {
+        console.error('Failed to fetch message history:', error);
+      }
+      break;
+
+    case 'mark_read':
+      if (data.messageIds && data.messageIds.length > 0) {
+        for (const id of data.messageIds) {
+          await hearingDatabase.updateMessage(id, { status: 'read' });
+        }
+        // Notify the sender that messages were read
+        if (data.senderId) {
+          activeConnections.forEach(conn => {
+            if (conn.userId === data.senderId && conn.ws.readyState === WebSocket.OPEN) {
+              conn.ws.send(JSON.stringify({
+                type: 'messages_read',
+                messageIds: data.messageIds,
+                readBy: connection.userId,
+                timestamp: new Date().toISOString()
+              }));
+            }
+          });
+        }
+      }
+      break;
+
+    case 'delete_message':
+      await hearingDatabase.updateMessage(data.messageId, { is_deleted: true });
+      // Notify both parties
+      const deletionNotice = {
+        type: 'message_deleted',
+        messageId: data.messageId,
+        deletedBy: connection.userId
+      };
+      
+      // Send to recipient
+      activeConnections.forEach(conn => {
+        if ((conn.userId === data.recipientId || conn.userId === connection.userId) && conn.ws.readyState === WebSocket.OPEN) {
+          conn.ws.send(JSON.stringify(deletionNotice));
+        }
+      });
+      break;
+
+    case 'edit_message':
+      const editedMsg = await hearingDatabase.updateMessage(data.messageId, { content: data.content });
+      if (editedMsg) {
+        const editNotice = {
+          type: 'message_edited',
           messageId: data.messageId,
-          roomId: data.roomId,
-          timestamp: data.timestamp || new Date().toISOString(),
-          encrypted: data.encrypted || false
+          content: data.content,
+          editedAt: editedMsg.edited_at
+        };
+        activeConnections.forEach(conn => {
+          if ((conn.userId === data.recipientId || conn.userId === connection.userId) && conn.ws.readyState === WebSocket.OPEN) {
+            conn.ws.send(JSON.stringify(editNotice));
+          }
         });
       }
       break;
@@ -651,26 +743,19 @@ function handleSignalingMessage(connectionId, data) {
   
   const { targetUserId, signalingData } = data;
   
-  // Find target user's connection
-  let targetConnection = null;
-  activeConnections.forEach((conn, connId) => {
-    if (conn.userId === targetUserId) {
-      targetConnection = conn;
+  activeConnections.forEach((conn) => {
+    if (conn.userId === targetUserId && conn.ws.readyState === WebSocket.OPEN) {
+      conn.ws.send(JSON.stringify({
+        type: 'signaling_message',
+        senderId: connection.userId,
+        senderName: connection.userName,
+        signalingData: signalingData,
+        timestamp: new Date().toISOString()
+      }));
     }
   });
-  
-  if (targetConnection && targetConnection.ws.readyState === WebSocket.OPEN) {
-    // Forward signaling message to target user
-    targetConnection.ws.send(JSON.stringify({
-      type: 'signaling_message',
-      userId: connection.userId,
-      userName: connection.userName,
-      signalingData: signalingData,
-      timestamp: new Date().toISOString()
-    }));
-    
-    console.log('🔗 Signaling: ' + connection.userName + ' → ' + targetConnection.userName + ' (' + signalingData.type + ')');
-  }
+
+  console.log(`📡 Signaling [${signalingData.type}] from ${connection.userName} to ${targetUserId}`);
 }
 
 async function handleMediaStreamData(connectionId, data) {
@@ -884,7 +969,7 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
     if (user.isLocked) {
       return res.status(423).json({
         success: false,
-        message: 'Account locked due to multiple failed attempts'
+        message: 'Account locked due to multiple failed attempts. Please try again later or contact support.'
       });
     }
 
@@ -908,7 +993,7 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials',
-        attemptsRemaining: 5 - user.failedAttempts
+        attemptsRemaining: Math.max(0, 5 - user.failedAttempts)
       });
     }
 
@@ -978,6 +1063,36 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
       message: 'Authentication failed'
     });
   }
+});
+
+// Reset account lock (for development/support)
+app.post('/api/auth/reset-account', (req, res) => {
+  const { username } = req.body;
+  
+  if (!username) {
+    return res.status(400).json({
+      success: false,
+      message: 'Username required'
+    });
+  }
+  
+  const user = users.find(u => u.username === username);
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+  
+  user.failedAttempts = 0;
+  user.isLocked = false;
+  
+  console.log('ACCOUNT_RESET: ' + username + ' at ' + new Date().toISOString());
+  
+  res.json({
+    success: true,
+    message: 'Account reset successfully'
+  });
 });
 
 app.post('/api/auth/logout', authenticateToken, (req, res) => {
@@ -1051,6 +1166,165 @@ app.get('/api/users', authenticateToken, requirePermission('user_management'), (
     success: true,
     data: mockUsers,
     total: mockUsers.length
+  });
+});
+
+// Hearings
+app.get('/api/hearings', authenticateToken, (req, res) => {
+  const mockHearings = [
+    {
+      id: 'HRG-2026-001',
+      caseId: 'CIV-2026-001',
+      caseNumber: 'CIV-2026-001',
+      title: 'Tekle vs. Ethiopian Airlines',
+      type: 'Civil',
+      date: '2026-03-20',
+      time: '09:00 AM',
+      courtroom: 'Courtroom A',
+      judge: 'Judge Alemu Bekele',
+      status: 'Scheduled',
+      participants: ['Judge Alemu Bekele', 'Lawyer Sara Ahmed', 'Lawyer Robert Johnson']
+    },
+    {
+      id: 'HRG-2026-002',
+      caseId: 'CRM-2026-002',
+      caseNumber: 'CRM-2026-002',
+      title: 'State vs. Mohammed Ali',
+      type: 'Criminal',
+      date: '2026-03-21',
+      time: '11:00 AM',
+      courtroom: 'Courtroom B',
+      judge: 'Judge Alemu Bekele',
+      status: 'Scheduled',
+      participants: ['Judge Alemu Bekele', 'Prosecutor', 'Defense Counsel']
+    },
+    {
+      id: 'HRG-2026-003',
+      caseId: 'FAM-2026-001',
+      caseNumber: 'FAM-2026-001',
+      title: 'Hailu vs. Hailu (Divorce)',
+      type: 'Family',
+      date: '2026-03-18',
+      time: '02:00 PM',
+      courtroom: 'Courtroom C',
+      judge: 'Judge Alemu Bekele',
+      status: 'Completed',
+      participants: ['Judge Alemu Bekele', 'Lawyer Sara Ahmed']
+    }
+  ];
+
+  res.json({
+    success: true,
+    data: mockHearings,
+    total: mockHearings.length
+  });
+});
+
+// Documents
+app.get('/api/documents', authenticateToken, (req, res) => {
+  const mockDocuments = [
+    {
+      id: 'DOC-2026-001',
+      title: 'Case Filing - CIV-2026-001',
+      type: 'Petition',
+      caseNumber: 'CIV-2026-001',
+      uploadedBy: 'Lawyer Sara Ahmed',
+      uploadedAt: '2026-03-10T09:15:00Z',
+      status: 'Accepted',
+      fileSize: '245 KB'
+    },
+    {
+      id: 'DOC-2026-002',
+      title: 'Evidence Exhibit A - CRM-2026-002',
+      type: 'Evidence',
+      caseNumber: 'CRM-2026-002',
+      uploadedBy: 'Prosecutor',
+      uploadedAt: '2026-03-12T14:30:00Z',
+      status: 'Under Review',
+      fileSize: '1.2 MB'
+    },
+    {
+      id: 'DOC-2026-003',
+      title: 'Divorce Agreement Draft',
+      type: 'Agreement',
+      caseNumber: 'FAM-2026-001',
+      uploadedBy: 'Lawyer Robert Johnson',
+      uploadedAt: '2026-03-15T11:00:00Z',
+      status: 'Accepted',
+      fileSize: '88 KB'
+    }
+  ];
+
+  res.json({
+    success: true,
+    data: mockDocuments,
+    total: mockDocuments.length
+  });
+});
+
+// Reports and Analytics
+app.get('/api/reports/analytics/comprehensive', authenticateToken, (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      caseAnalytics: {
+        total: 1248,
+        closed: 856,
+        pending: 392,
+        averageResolutionDays: 45
+      },
+      performanceIndices: [
+        { label: 'Clearance Rate', value: '92%' },
+        { label: 'Efficiency', value: '88%' }
+      ],
+      caseVolume: {
+        monthly: [120, 145, 132, 168, 154, 192]
+      },
+      courtPerformance: {
+        clearanceRate: 92,
+        hearingEfficiency: 88,
+        digitalAdoption: 75
+      }
+    }
+  });
+});
+
+// Audit Logs
+app.get('/api/system/audit-logs', authenticateToken, (req, res) => {
+  const mockLogs = [
+    {
+      id: 'log-1',
+      action: 'HEARING_STARTED',
+      details: 'Virtual hearing initiated for case CIV-2026-001',
+      userId: 'judge-alemu',
+      timestamp: new Date().toISOString()
+    },
+    {
+      id: 'log-2',
+      action: 'CASE_UPDATING',
+      details: 'Evidence submitted for case CIV-2026-002',
+      userId: 'lawyer-sara',
+      timestamp: new Date().toISOString()
+    },
+    {
+      id: 'log-3',
+      action: 'USER_LOGIN',
+      details: 'System administrator logged in',
+      userId: 'admin-system',
+      timestamp: new Date().toISOString()
+    },
+    {
+      id: 'log-4',
+      action: 'DOCUMENT_UPLOAD',
+      details: 'New brief uploaded for case FAM-2026-001',
+      userId: 'lawyer-robert',
+      timestamp: new Date().toISOString()
+    }
+  ];
+  
+  res.json({
+    success: true,
+    data: mockLogs
   });
 });
 
@@ -1635,17 +1909,6 @@ app.post('/api/virtual-hearing/:sessionId/recording', authenticateToken, (req, r
   });
 });
 
-// Catch-all handler for frontend routes (SPA support)
-app.get('*', (req, res) => {
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({
-      success: false,
-      message: 'API endpoint not found'
-    });
-  }
-  
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 // Database API endpoints for admin interface
 app.get('/api/database/schema', async (req, res) => {
@@ -1791,6 +2054,19 @@ app.get('/api/database/users', async (req, res) => {
       error: error.message
     });
   }
+});
+
+// API 404 Catch-all
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'API endpoint not found on judicial server'
+  });
+});
+
+// SPA Catch-all (for browser navigation)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Error handling middleware

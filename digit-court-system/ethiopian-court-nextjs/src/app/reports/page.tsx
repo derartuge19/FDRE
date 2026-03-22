@@ -81,11 +81,26 @@ export default function Reports() {
         });
         const logsData = await logsRes.json();
 
-        if (analyticsData.success && logsData.success) {
+        if (analyticsData.success) {
            const liveReports: Report[] = [
-             { id: 'AN-001', title: 'Institutional Case Volume Analysis', type: 'case_analytics', status: 'ready', generatedDate: new Date().toISOString().split('T')[0], period: 'March 2026', size: '2.4 MB' },
-             { id: 'AN-002', title: 'Judicial Workload & Efficiency Report', type: 'court_performance', status: 'ready', generatedDate: new Date().toISOString().split('T')[0], period: 'Current Month', size: '1.2 MB' },
-             { id: 'AU-001', title: `System-Wide Activity Log (${logsData.data.length} Entries)`, type: 'user_activity', status: 'ready', generatedDate: new Date().toISOString().split('T')[0], period: 'Last 24 Hours', size: '856 KB' }
+             { 
+               id: 'AN-001', 
+               title: 'Institutional Case Volume Analysis', 
+               type: 'case_analytics', 
+               status: 'ready', 
+               generatedDate: new Date().toISOString().split('T')[0], 
+               period: `Total: ${analyticsData.data.caseAnalytics.total}`, 
+               size: '2.4 MB' 
+             },
+             { 
+               id: 'AN-002', 
+               title: 'Judicial Workload & Efficiency Report', 
+               type: 'court_performance', 
+               status: 'ready', 
+               generatedDate: new Date().toISOString().split('T')[0], 
+               period: `Clearance: ${analyticsData.data.courtPerformance.clearanceRate}%`, 
+               size: '1.2 MB' 
+             }
            ];
            setReports(liveReports);
         }

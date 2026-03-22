@@ -42,15 +42,30 @@ export default function Profile() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', department: '' });
   
-  const [modalConfig, setModalConfig] = useState<{isOpen: boolean, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}>({
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean, 
+    title: string, 
+    message: string, 
+    type: 'info' | 'success' | 'warning' | 'error' | 'security' | 'judicial',
+    confirmLabel?: string,
+    cancelLabel?: string
+  }>({
     isOpen: false, title: '', message: '', type: 'info'
   });
+
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [backdropImage, setBackdropImage] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
     const userStr = localStorage.getItem('courtUser');
     const token = localStorage.getItem('courtToken');
+    const savedImg = localStorage.getItem('courtProfileImg');
+    const savedBackdrop = localStorage.getItem('courtBackdropImg');
     
+    if (savedImg) setProfileImage(savedImg);
+    if (savedBackdrop) setBackdropImage(savedBackdrop);
+
     if (userStr && userStr !== 'undefined') {
       try {
         const userData = JSON.parse(userStr);
@@ -72,14 +87,38 @@ export default function Profile() {
              headers: { 'Authorization': `Bearer ${token}` }
           });
           const data = await res.json();
-          // Profile could display dynamic stats from here if needed
        } catch (err) {
-          console.error('Dossier sync failure');
+          console.error('Profile sync failure');
        }
     };
 
     if (token) fetchPerformance();
   }, []);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'backdrop') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        if (type === 'profile') {
+          setProfileImage(base64String);
+          localStorage.setItem('courtProfileImg', base64String);
+        } else {
+          setBackdropImage(base64String);
+          localStorage.setItem('courtBackdropImg', base64String);
+        }
+        
+        setModalConfig({
+          isOpen: true,
+          title: 'Profile Updated',
+          message: 'Your profile image has been successfully synchronized.',
+          type: 'success'
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,8 +135,8 @@ export default function Profile() {
     setIsEditModalOpen(false);
     setModalConfig({
       isOpen: true,
-      title: 'Dossier Synchronized',
-      message: 'Your judicial identity has been updated across the federal network.',
+      title: 'Profile Synchronized',
+      message: 'Your judicial profile has been updated across the federal network.',
       type: 'success'
     });
   };
@@ -116,7 +155,9 @@ export default function Profile() {
         isOpen: true,
         title: 'Terminate Session?',
         message: 'Are you sure you want to decouple from the judicial uplink? Unsaved procedural changes may be lost.',
-        type: 'warning'
+        type: 'warning',
+        confirmLabel: 'DECOUPLE NOW',
+        cancelLabel: 'MAINTAIN UPLINK'
     });
   };
 
@@ -139,11 +180,16 @@ export default function Profile() {
             <div className="relative mb-20">
                {/* Cover Area */}
                <div className="h-64 bg-emerald-950 rounded-[4rem] relative overflow-hidden shadow-2xl">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,_rgba(16,185,129,0.2),transparent)]"></div>
+                  {backdropImage ? (
+                    <img src={backdropImage} className="w-full h-full object-cover opacity-60" alt="Backdrop" />
+                  ) : (
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,_rgba(16,185,129,0.2),transparent)]"></div>
+                  )}
                   <div className="absolute bottom-10 right-10">
-                     <button onClick={() => handlePlaceholderAction('Atmospheric Sync', 'The judicial backdrop engine is currently locked by institutional protocol.')} className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-emerald-500/10 border border-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest backdrop-blur-3xl transition-all">
+                     <label className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-emerald-500/10 border border-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest backdrop-blur-3xl transition-all cursor-pointer">
                         <Camera size={14} /> Change Backdrop
-                     </button>
+                        <input type="file" className="hidden" accept="image/*" onChange={e => handleImageChange(e, 'backdrop')} />
+                     </label>
                   </div>
                </div>
 
@@ -151,12 +197,17 @@ export default function Profile() {
                <div className="px-12 -mt-24 relative z-10">
                   <div className="flex flex-col lg:flex-row items-end gap-10">
                      <div className="relative group">
-                        <div className="w-48 h-48 card-bg rounded-[3.5rem] border-[8px] border-page-bg shadow-2xl shadow-emerald-950/20 flex items-center justify-center text-7xl group-hover:scale-105 transition-transform">
-                           {currentUser.role === 'JUDGE' ? '👨‍⚖️' : '⚖️'}
+                        <div className="w-48 h-48 card-bg rounded-[3.5rem] border-[8px] border-page-bg shadow-2xl shadow-emerald-950/20 flex items-center justify-center text-7xl group-hover:scale-105 transition-transform overflow-hidden">
+                           {profileImage ? (
+                             <img src={profileImage} className="w-full h-full object-cover" alt="Profile" />
+                           ) : (
+                             currentUser.role === 'JUDGE' ? '👨‍⚖️' : '⚖️'
+                           )}
                         </div>
-                        <button onClick={() => handlePlaceholderAction('Biometric Update', 'Biometric profile imagery is managed by the Federal Security Office.')} className="absolute bottom-2 right-2 w-12 h-12 bg-emerald-500 text-emerald-950 rounded-2xl border-4 border-page-bg flex items-center justify-center shadow-xl hover:scale-110 transition-all">
+                        <label className="absolute bottom-2 right-2 w-12 h-12 bg-emerald-500 text-emerald-950 rounded-2xl border-4 border-page-bg flex items-center justify-center shadow-xl hover:scale-110 transition-all cursor-pointer">
                            <Camera size={18} />
-                        </button>
+                           <input type="file" className="hidden" accept="image/*" onChange={e => handleImageChange(e, 'profile')} />
+                        </label>
                      </div>
                      <div className="flex-1 pb-4 text-center lg:text-left">
                         <div className="flex items-center justify-center lg:justify-start gap-4 mb-2">
@@ -178,7 +229,7 @@ export default function Profile() {
                            <Settings size={20} /> Preferences
                         </button>
                         <button onClick={() => { setEditForm({ name: currentUser.name, email: currentUser.email, phone: currentUser.phone, department: currentUser.department }); setIsEditModalOpen(true); }} className="flex items-center gap-3 px-10 py-5 bg-emerald-950 text-emerald-400 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:bg-emerald-900 transition-all border border-emerald-500/20 active:scale-95">
-                           <Edit3 size={20} /> Edit Dossier
+                           <Edit3 size={20} /> Edit Profile
                         </button>
                      </div>
                   </div>
@@ -302,7 +353,7 @@ export default function Profile() {
       </main>
 
       <footer className="py-20 text-center opacity-30 select-none pointer-events-none">
-         <p className="text-[8px] font-black uppercase tracking-[1em] text-emerald-950">AUTHENTICATED JUDICIAL DOSSIER • FDRE DISTRICT 7</p>
+         <p className="text-[8px] font-black uppercase tracking-[1em] text-emerald-950">AUTHENTICATED JUDICIAL PROFILE • FDRE DISTRICT 7</p>
        </footer>
 
        <AnimatePresence>
@@ -318,7 +369,7 @@ export default function Profile() {
                   <div className="p-12">
                      <div className="flex justify-between items-start mb-10">
                         <div>
-                           <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase mb-2">Update Dossier</h2>
+                           <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase mb-2">Update Profile</h2>
                            <p className="text-secondary font-medium uppercase text-[10px] tracking-widest">Institutional Credential Synchronization</p>
                         </div>
                         <button onClick={() => setIsEditModalOpen(false)} className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"><X size={24} /></button>

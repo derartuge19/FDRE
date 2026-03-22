@@ -1,0 +1,21 @@
+FROM node:18-alpine
+
+# Use an ARG to specify which service we are building
+ARG SERVICE_NAME
+
+WORKDIR /app
+
+# Copy the common files
+COPY database/ ./database/
+COPY services/ ./services/
+
+# Copy the specific service files
+COPY court-services/${SERVICE_NAME}/ ./court-services/${SERVICE_NAME}/
+
+# Install dependencies for that specific service
+WORKDIR /app/court-services/${SERVICE_NAME}
+RUN npm install
+RUN ln -s /app/court-services/${SERVICE_NAME}/node_modules /app/node_modules
+
+# Expose port (will be defined by docker-compose)
+CMD ["node", "server.js"]

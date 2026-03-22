@@ -405,6 +405,163 @@ class PostgresHearingDatabase {
         return result.rows;
     }
 
+    // Analytics and Reporting
+    async getComprehensiveAnalytics() {
+        const caseStats = await query(`
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE status = 'closed') as closed,
+                COUNT(*) FILTER (WHERE status = 'active' OR status = 'open') as active,
+                COUNT(*) FILTER (WHERE status = 'pending') as pending,
+                COUNT(*) FILTER (WHERE type = 'Civil') as civil,
+                COUNT(*) FILTER (WHERE type = 'Criminal') as criminal,
+                COUNT(*) FILTER (WHERE type = 'Family') as family
+            FROM cases
+        `);
+        
+        const userStats = await query(`
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE roles @> '{"judge"}') as judges,
+                COUNT(*) FILTER (WHERE roles @> '{"lawyer"}') as lawyers
+            FROM users 
+            WHERE is_active = TRUE
+        `);
+
+        const hearingStats = await query(`
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE start_time >= CURRENT_DATE) as upcoming
+            FROM hearings
+        `);
+
+        return {
+            cases: caseStats.rows[0],
+            users: userStats.rows[0],
+            hearings: hearingStats.rows[0],
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    async getRecentActivity(limit = 10) {
+        const result = await query(`
+            (SELECT 'case' as type, title, filing_date as time, 'New case filed' as desc, id FROM cases)
+            UNION ALL
+            (SELECT 'hearing' as type, hearing_type as title, start_time as time, 'Hearing scheduled' as desc, id FROM hearings)
+            UNION ALL
+            (SELECT 'system' as type, access_type as title, access_time as time, 'System access' as desc, id FROM recording_access_log)
+            ORDER BY time DESC
+            LIMIT $1
+        `, [limit]);
+        
+        return result.rows;
+    }
+
+    // Message management (Real-time Communication)
+    async createMessage(msgData) {
+        const id = msgData.id || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+        
+        const result = await query(`
+            INSERT INTO messages (id, sender_id, recipient_id, room_id, content, attachments, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+        `, [
+            id,
+            msgData.sender_id,
+            msgData.recipient_id,
+            msgData.room_id || null,
+            msgData.content,
+            JSON.stringify(msgData.attachments || []),
+            msgData.status || 'sent'
+        ]);
+        
+        return result.rows[0];
+    }
+
+    async getMessages(filters = {}) {
+        let whereClause = 'WHERE is_deleted = FALSE';
+        const values = [];
+        let paramCount = 0;
+
+        if (filters.room_id) {
+            whereClause += ` AND room_id = $${++paramCount}`;
+            values.push(filters.room_id);
+        }
+        if (filters.sender_id && filters.recipient_id) {
+            whereClause += ` AND ((sender_id = $${++paramCount} AND recipient_id = $${++paramCount}) OR (sender_id = $${paramCount} AND recipient_id = $${paramCount-1}))`;
+            values.push(filters.sender_id, filters.recipient_id);
+        } else if (filters.sender_id) {
+            whereClause += ` AND sender_id = $${++paramCount}`;
+            values.push(filters.sender_id);
+        } else if (filters.recipient_id) {
+            whereClause += ` AND recipient_id = $${++paramCount}`;
+            values.push(filters.recipient_id);
+        }
+
+        const result = await query(`
+            SELECT m.*, u1.name as sender_name, u2.name as recipient_name 
+            FROM messages m 
+            LEFT JOIN users u1 ON m.sender_id = u1.id 
+            LEFT JOIN users u2 ON m.recipient_id = u2.id 
+            ${whereClause} 
+            ORDER BY m.timestamp ASC 
+            LIMIT ${filters.limit || 100}
+        `, values);
+        
+        return result.rows;
+    }
+
+    async updateMessage(id, updates) {
+        const setClause = [];
+        const values = [id];
+        let paramCount = 1;
+
+        if (updates.status) {
+            setClause.push(`status = $${++paramCount}`);
+            values.push(updates.status);
+        }
+        if (updates.content) {
+            setClause.push(`content = $${++paramCount}`);
+            values.push(updates.content);
+            setClause.push(`edited_at = CURRENT_TIMESTAMP`);
+        }
+        if (updates.is_deleted !== undefined) {
+            setClause.push(`is_deleted = $${++paramCount}`);
+            values.push(updates.is_deleted);
+        }
+
+        if (setClause.length === 0) return null;
+
+        const result = await query(`
+            UPDATE messages SET ${setClause.join(', ')} WHERE id = $1 RETURNING *
+        `, values);
+        
+        return result.rows[0];
+    }
+
+    // Proxy for backward compatibility with Map-based access
+    get tables() {
+        const self = this;
+        return {
+            hearings: {
+                get: async (id) => await self.getHearingById(id),
+                set: (id, val) => console.log('Use createHearing instead of tables.hearings.set')
+            },
+            recordings: {
+                get: async (id) => await self.getRecordingById(id),
+                set: (id, val) => console.log('Use createRecording instead of tables.recordings.set')
+            },
+            participants: {
+                get: async (id) => {
+                    // This is tricky as participants are usually fetched by hearing_id
+                    const result = await query('SELECT * FROM participants WHERE id = $1', [id]);
+                    return result.rows[0];
+                },
+                set: (id, val) => this.createParticipant(val)
+            }
+        };
+    }
+
     // Database schema information
     getTableSchema() {
         return {
@@ -421,6 +578,18 @@ class PostgresHearingDatabase {
                     { name: 'mfa_enabled', type: 'BOOLEAN', key: '', description: 'Multi-factor authentication enabled' },
                     { name: 'is_active', type: 'BOOLEAN', key: 'INDEX', description: 'Account active status' },
                     { name: 'created_at', type: 'TIMESTAMP', key: '', description: 'Account creation time' }
+                ]
+            },
+            messages: {
+                description: 'Secure communication messages between court participants',
+                columns: [
+                    { name: 'id', type: 'VARCHAR(50)', key: 'PRIMARY', description: 'Unique message identifier' },
+                    { name: 'sender_id', type: 'VARCHAR(50)', key: 'FOREIGN', description: 'User ID of the sender' },
+                    { name: 'recipient_id', type: 'VARCHAR(50)', key: 'FOREIGN', description: 'User ID of the recipient' },
+                    { name: 'content', type: 'TEXT', key: '', description: 'Message content' },
+                    { name: 'timestamp', type: 'TIMESTAMP', key: 'INDEX', description: 'Message sent time' },
+                    { name: 'status', type: 'VARCHAR(20)', key: '', description: 'Message status (sent, delivered, read)' },
+                    { name: 'is_deleted', type: 'BOOLEAN', key: '', description: 'Soft delete status' }
                 ]
             },
             cases: {
@@ -509,4 +678,4 @@ class PostgresHearingDatabase {
 // Export singleton instance
 const postgresHearingDatabase = new PostgresHearingDatabase();
 
-module.exports = postgresHearingDatabase;
+module.exports = postgresHearingDatabase;

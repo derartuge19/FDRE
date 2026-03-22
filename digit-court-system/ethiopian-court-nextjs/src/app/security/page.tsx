@@ -81,7 +81,7 @@ export default function SecurityPortal() {
   if (!mounted) return null;
 
   return (
-    <RequireAccess allowedRoles={['SYSTEM_ADMIN']}>
+    <RequireAccess allowedRoles={['SYSTEM_ADMIN', 'COURT_ADMIN']}>
     <div className="min-h-screen page-bg page-text">
       {/* Header */}
       <Header />

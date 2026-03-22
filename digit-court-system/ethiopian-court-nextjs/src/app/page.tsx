@@ -151,16 +151,16 @@ export default function Dashboard() {
       <Navigation />
 
       {/* Main Content */}
-      <main className="main-container scrollbar-hide py-10 px-6">
+      <main className="main-container scrollbar-hide py-6 md:py-10 px-4 md:px-6">
         <div className="container mx-auto">
           
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12"
+            className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-12"
           >
-            <div>
-              <h1 className="text-5xl font-black page-text tracking-tighter mb-2">
+            <div className="w-full xl:w-auto">
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-black page-text tracking-tighter mb-2 break-words">
                 {userRole === 'JUDGE' && 'Judicial Dashboard'}
                 {userRole === 'LAWYER' && 'Legal Practice Dashboard'}
                 {userRole === 'CLERK' && 'Court Operations Dashboard'}
@@ -178,14 +178,14 @@ export default function Dashboard() {
                 {userRole === 'USER' && 'Welcome to the Ethiopian Digital Court System.'}
               </p>
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto">
               <RoleBasedContent allowedRoles={['SYSTEM_ADMIN', 'COURT_ADMIN', 'JUDGE', 'CLERK']}>
-                <button className="flex items-center gap-3 px-8 py-4 card-bg border-2 border-emerald-500/10 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-500/5 transition-all shadow-sm page-text">
+                <button className="flex items-center justify-center gap-3 px-6 md:px-8 py-4 card-bg border-2 border-emerald-500/10 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-500/5 transition-all shadow-sm page-text w-full sm:w-auto">
                   <BarChart3 size={16} className="text-emerald-500" /> Export Reports
                 </button>
               </RoleBasedContent>
               <RoleBasedContent allowedRoles={['SYSTEM_ADMIN', 'COURT_ADMIN', 'JUDGE', 'CLERK']}>
-                <button className="flex items-center gap-3 px-8 py-4 bg-emerald-950 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-800 transition-all shadow-2xl shadow-emerald-950/20">
+                <button className="flex items-center justify-center gap-3 px-6 md:px-8 py-4 bg-emerald-950 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-800 transition-all shadow-2xl shadow-emerald-950/20 w-full sm:w-auto">
                   <Plus size={16} className="text-emerald-400" /> Register New Case
                 </button>
               </RoleBasedContent>
@@ -199,14 +199,14 @@ export default function Dashboard() {
           <RoleBasedQuickActions />
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8 mb-12">
             {stats.map((stat, idx) => (
               <motion.div 
                 key={stat.label}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.1 }}
-                className="card-bg p-8 rounded-[2.5rem] shadow-2xl shadow-emerald-950/5 border border-emerald-500/10 group hover:border-emerald-500 transition-all"
+                className="card-bg p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl shadow-emerald-950/5 border border-emerald-500/10 group hover:border-emerald-500 transition-all"
               >
                  <div className="flex justify-between items-start mb-6">
                   <div className="w-14 h-14 bg-emerald-500/5 rounded-2xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-inner">
@@ -228,16 +228,16 @@ export default function Dashboard() {
               <motion.div 
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="card-bg rounded-[3rem] shadow-2xl shadow-emerald-950/5 border border-emerald-500/10 overflow-hidden h-full"
+                className="card-bg rounded-[2rem] md:rounded-[3rem] shadow-2xl shadow-emerald-950/5 border border-emerald-500/10 overflow-hidden h-full"
               >
                 <div className="p-10 border-b border-emerald-500/10 flex items-center justify-between">
                    <h3 className="text-2xl font-black page-text tracking-tight">Recent Activity Log</h3>
                    <button className="text-emerald-500 font-black text-xs uppercase tracking-widest hover:underline px-4 py-2 bg-emerald-500/10 rounded-xl">View All History</button>
                 </div>
-                <div className="p-10 space-y-6">
+                <div className="p-6 md:p-10 space-y-6">
                    {recentActivities.map(activity => (
-                     <div key={activity.id} className="flex items-center gap-6 p-6 rounded-3xl border-2 border-transparent hover:border-emerald-500/20 hover:bg-emerald-500/5 transition-all group">
-                        <div className="w-16 h-16 card-bg rounded-2xl flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform border border-emerald-500/10">
+                     <div key={activity.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 p-6 rounded-3xl border-2 border-transparent hover:border-emerald-500/20 hover:bg-emerald-500/5 transition-all group">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 card-bg rounded-2xl flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform border border-emerald-500/10 shrink-0">
                           {activity.type === 'case' ? '📂' : activity.type === 'hearing' ? '⚖️' : activity.type === 'document' ? '📝' : '👤'}
                         </div>
                         <div className="flex-1">

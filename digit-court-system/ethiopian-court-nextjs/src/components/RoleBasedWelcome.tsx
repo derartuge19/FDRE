@@ -9,28 +9,28 @@ export default function RoleBasedWelcome() {
   const roleContent = {
     SYSTEM_ADMIN: {
       icon: <Shield size={48} className="text-emerald-500" />,
-      title: 'System Administrator Dashboard',
-      subtitle: 'Full system control and oversight',
-      description: 'You have complete access to all system features, user management, security settings, and system logs.',
+      title: 'Global System Administrator',
+      subtitle: 'Universal Oversight & Governance',
+      description: 'You have full structural and operational control over the Digital Judiciary Hub, including security, staffing, and documentation.',
       features: [
-        'Manage all users and roles',
-        'Configure system settings',
-        'Monitor security and audit logs',
-        'Access all cases and hearings',
-        'Generate comprehensive reports'
+        'Manage all users, roles & staffing',
+        'Full case docket & schedule control',
+        'Institutional security & audit logs',
+        'Virtual hearing orchestration',
+        'System configuration & reporting'
       ]
     },
     COURT_ADMIN: {
       icon: <Users size={48} className="text-blue-500" />,
-      title: 'Court Administrator Dashboard',
-      subtitle: 'Court operations and management',
-      description: 'Manage court operations, schedule hearings, assign cases, and oversee administrative functions.',
+      title: 'Court Operations Administrator',
+      subtitle: 'Universal Case & Staff Management',
+      description: 'You have full structural and operational control over the Digital Judiciary Hub, including security, staffing, and documentation.',
       features: [
-        'Manage court schedules',
-        'Assign cases to judges',
-        'Oversee case processing',
-        'Manage court staff',
-        'Generate operational reports'
+        'Manage all users, roles & staffing',
+        'Full case docket & schedule control',
+        'Institutional security & audit logs',
+        'Virtual hearing orchestration',
+        'System configuration & reporting'
       ]
     },
     JUDGE: {
@@ -115,19 +115,19 @@ export default function RoleBasedWelcome() {
   const content = roleContent[userRole] || roleContent.USER;
 
   return (
-    <div className="card-bg p-10 rounded-[3rem] border border-emerald-500/10 shadow-2xl mb-10">
-      <div className="flex items-start gap-8">
-        <div className="w-20 h-20 bg-emerald-500/10 rounded-2xl flex items-center justify-center shrink-0">
+    <div className="card-bg p-4 sm:p-10 rounded-3xl md:rounded-[3rem] border border-emerald-500/10 shadow-2xl mb-6 md:mb-10">
+      <div className="flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-4 md:gap-8">
+        <div className="w-14 h-14 md:w-20 md:h-20 bg-emerald-500/10 rounded-2xl flex items-center justify-center shrink-0">
           {content.icon}
         </div>
         <div className="flex-1">
-          <h2 className="text-3xl font-black page-text mb-2">{content.title}</h2>
-          <p className="text-emerald-500 font-bold text-lg mb-4">{content.subtitle}</p>
-          <p className="text-secondary mb-6 leading-relaxed">{content.description}</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <h2 className="text-xl md:text-3xl font-black page-text mb-1 md:mb-2">{content.title}</h2>
+          <p className="text-emerald-500 font-bold text-sm md:text-lg mb-3 md:mb-4">{content.subtitle}</p>
+          <p className="text-secondary text-sm md:text-base mb-6 leading-relaxed max-w-2xl mx-auto md:mx-0">{content.description}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3 text-left">
             {content.features.map((feature, idx) => (
-              <div key={idx} className="flex items-center gap-3 text-sm">
-                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+              <div key={idx} className="flex items-center gap-2 md:gap-3 text-[13px] md:text-sm">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0"></div>
                 <span className="text-secondary font-medium">{feature}</span>
               </div>
             ))}

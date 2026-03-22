@@ -1,12 +1,5 @@
-node_modules
-npm-debug.log
-.git
-.gitignore
-README.md
-.env
-.nyc_output
-coverage
-.nyc_output
-.vscode
-.idea
-*.log
+node_modules/
+ethiopian-court-nextjs/
+.git/
+recordings/
+uploads/

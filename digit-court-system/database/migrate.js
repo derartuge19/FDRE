@@ -224,6 +224,33 @@ const migrations = [
             DROP TRIGGER IF EXISTS update_cases_updated_at ON cases;
             CREATE TRIGGER update_cases_updated_at BEFORE UPDATE ON cases FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
         `
+    },
+    {
+        name: '011_create_messages_table',
+        sql: `
+            CREATE TABLE IF NOT EXISTS messages (
+                id VARCHAR(50) PRIMARY KEY,
+                sender_id VARCHAR(50) NOT NULL REFERENCES users(id),
+                recipient_id VARCHAR(50) REFERENCES users(id), -- Null for group messages (future)
+                room_id VARCHAR(50), -- Used for grouping messages in a context
+                content TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status VARCHAR(20) DEFAULT 'sent' CHECK (status IN ('sent', 'delivered', 'read')),
+                attachments JSONB DEFAULT '[]',
+                is_deleted BOOLEAN DEFAULT FALSE,
+                edited_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
+            CREATE INDEX IF NOT EXISTS idx_messages_recipient_id ON messages(recipient_id);
+            CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room_id);
+            CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+            
+            DROP TRIGGER IF EXISTS update_messages_updated_at ON messages;
+            CREATE TRIGGER update_messages_updated_at BEFORE UPDATE ON messages FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        `
     }
 ];
 

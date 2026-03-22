@@ -26,15 +26,34 @@ export function useCurrentUser() {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
+    const fetchProfile = async () => {
+      const token = localStorage.getItem('courtToken');
+      if (!token) return;
+
+      try {
+        const res = await fetch('http://localhost:5173/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          setUser(data.data);
+          localStorage.setItem('courtUser', JSON.stringify(data.data));
+        }
+      } catch (e) {
+        console.error('Failed to fetch user profile');
+      }
+    };
+
     const userStr = localStorage.getItem('courtUser');
     if (userStr && userStr !== 'undefined') {
       try {
-        const userData = JSON.parse(userStr);
-        setUser(userData);
+        setUser(JSON.parse(userStr));
       } catch (e) {
-        console.error('Failed to parse user data');
+        console.error('Failed to parse local user data');
       }
     }
+    
+    fetchProfile();
   }, []);
 
   return user;

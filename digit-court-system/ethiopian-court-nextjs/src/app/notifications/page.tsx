@@ -39,10 +39,13 @@ interface Notification {
   read: boolean;
 }
 
+import { useNotifications } from '@/context/NotificationContext';
+
 export default function Notifications() {
   const [currentUser, setCurrentUser] = useState('User');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { notifications: liveNotifications, markAsRead: markLiveAsRead, markAllAsRead, unreadCount: liveUnreadCount } = useNotifications();
+  const [dbNotifications, setDbNotifications] = useState<any[]>([]);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -66,7 +69,7 @@ export default function Notifications() {
           });
           const data = await res.json();
           if (data.success) {
-             setNotifications(data.data);
+             setDbNotifications(data.data);
           }
        } catch (err) {
           console.error('Failed to sync notifications');
@@ -80,12 +83,21 @@ export default function Notifications() {
     }
   }, []);
 
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+  const handleMarkAsRead = (id: string, isLive: boolean) => {
+    if (isLive) {
+      markLiveAsRead(id);
+    } else {
+      setDbNotifications(dbNotifications.map(n => n.id === id ? { ...n, read: true } : n));
+    }
   };
 
   const deleteNotification = (id: string) => {
-    setNotifications(notifications.filter(n => n.id !== id));
+    setDbNotifications(dbNotifications.filter(n => n.id !== id));
+  };
+
+  const handleClearAll = () => {
+    markAllAsRead();
+    setDbNotifications(dbNotifications.map(n => ({...n, read: true})));
   };
 
   const handleLogout = () => {
@@ -95,6 +107,12 @@ export default function Notifications() {
   };
 
   if (!mounted) return null;
+
+  const allNotifications = [...liveNotifications, ...dbNotifications].sort((a, b) => 
+    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+
+  const totalUnread = liveUnreadCount + dbNotifications.filter(n => !n.read).length;
 
   return (
     <RequireAccess allowedRoles={['SYSTEM_ADMIN', 'COURT_ADMIN', 'JUDGE', 'CLERK', 'LAWYER', 'PLAINTIFF', 'DEFENDANT', 'USER']}>
@@ -138,11 +156,11 @@ export default function Notifications() {
                 <div className="flex items-center gap-6">
                    <h1 className="text-5xl font-black page-text tracking-tighter">Broadcasts</h1>
                    <div className="px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-full text-[10px] font-black uppercase tracking-widest">
-                      {notifications.filter(n => !n.read).length} Unread
+                      {totalUnread} Unread
                    </div>
                 </div>
                 <button 
-                  onClick={() => setNotifications(notifications.map(n => ({...n, read: true})))}
+                  onClick={handleClearAll}
                   className="px-8 py-3 bg-emerald-500/5 border-2 border-emerald-500/20 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-950 hover:text-white transition-all shadow-xl shadow-emerald-950/5 page-text"
                 >
                   Clear All Alerts
@@ -150,8 +168,8 @@ export default function Notifications() {
              </div>
 
              <AnimatePresence mode="popLayout">
-                {notifications.length > 0 ? (
-                   notifications.map((notif, idx) => (
+                {allNotifications.length > 0 ? (
+                   allNotifications.map((notif, idx) => (
                     <motion.div 
                       key={notif.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -181,14 +199,16 @@ export default function Notifications() {
                                     <span className="px-3 py-1 bg-red-500 text-white text-[8px] font-black uppercase tracking-tighter rounded-full">CRITICAL</span>
                                   )}
                                </div>
-                               <span className="text-[10px] font-bold text-muted uppercase tracking-widest">{notif.timestamp}</span>
+                               <span className="text-[10px] font-bold text-muted uppercase tracking-widest">
+                                 {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                               </span>
                             </div>
                             <p className="text-secondary font-medium leading-relaxed mb-6">{notif.message}</p>
                             
                             <div className="flex items-center gap-4">
                                {!notif.read && (
                                  <button 
-                                   onClick={() => markAsRead(notif.id)}
+                                   onClick={() => handleMarkAsRead(notif.id, liveNotifications.some(ln => ln.id === notif.id))}
                                    className="px-6 py-2 bg-emerald-950 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-800 transition-all"
                                  >
                                    Acknowledge
@@ -197,7 +217,7 @@ export default function Notifications() {
                                <button 
                                  onClick={() => deleteNotification(notif.id)}
                                  className="p-2 text-muted hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
-                               >
+                                >
                                  <Trash2 size={16} />
                                </button>
                             </div>

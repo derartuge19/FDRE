@@ -14,41 +14,42 @@ import {
   VideoOff, 
   Monitor, 
   FileText,
-  Maximize2,
-  Minimize2,
-  Plus,
-  Search,
-  Filter,
-  ChevronRight,
-  Square,
-  Circle,
-  Pause,
-  Play,
-  Users,
-  User,
-  Shield,
-  Gavel,
-  Hand,
-  LogOut,
-  MoreHorizontal,
-  Share2,
-  Camera,
-  Send,
-  Lock,
-  Settings,
-  Bell,
-  Clock,
-  MessageSquare,
-  X,
-  Paperclip,
-  Volume2,
-  Activity,
-  Pipette,
-  CheckCircle2,
-  AlertCircle,
-  Download,
-  Save,
-  Trash2
+  Maximize2, 
+  Minimize2, 
+  Plus, 
+  Search, 
+  Filter, 
+  ChevronRight, 
+  Square, 
+  Circle, 
+  Pause, 
+  Play, 
+  Users, 
+  User, 
+  Shield, 
+  Gavel, 
+  Hand, 
+  LogOut, 
+  MoreHorizontal, 
+  Share2, 
+  Camera, 
+  Send, 
+  Lock, 
+  Settings, 
+  Bell, 
+  Clock, 
+  MessageSquare, 
+  X, 
+  Paperclip, 
+  Volume2, 
+  Activity, 
+  Pipette, 
+  CheckCircle2, 
+  AlertCircle, 
+  Download, 
+  Save, 
+  Trash2,
+  ArrowLeft
  } from 'lucide-react';
 
 // --- TYPES ---
@@ -87,7 +88,14 @@ export default function VirtualHearing() {
   const [isBreakoutModalOpen, setIsBreakoutModalOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
-  const [modalConfig, setModalConfig] = useState<{isOpen: boolean, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}>({
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean, 
+    title: string, 
+    message: string, 
+    type: 'info' | 'success' | 'warning' | 'error' | 'security' | 'judicial',
+    confirmLabel?: string,
+    cancelLabel?: string
+  }>({
     isOpen: false, title: '', message: '', type: 'info'
   });
 
@@ -469,6 +477,10 @@ export default function VirtualHearing() {
             >
               <header className="h-16 px-8 flex items-center justify-between border-b border-gray-100 bg-white shadow-sm shrink-0">
                 <div className="flex items-center gap-3">
+                  <Link href="/" className="mr-2 p-2 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all flex items-center gap-2 group">
+                    <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+                    <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Dashboard</span>
+                  </Link>
                   <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg"><Gavel size={20}/></div>
                   <span className="text-xl font-bold text-slate-800 tracking-tight">Judicial Chamber Link</span>
                 </div>
@@ -580,6 +592,9 @@ export default function VirtualHearing() {
 
               <header className="h-16 px-8 flex items-center justify-between border-b border-slate-200 bg-white/80 backdrop-blur-md shrink-0 z-50">
                 <div className="flex items-center gap-4">
+                  <Link href="/" className="p-2 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all group">
+                    <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+                  </Link>
                   <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg">⚖️</div>
                   <div>
                     <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Judicial Portal • Case #{sessionId}</h2>
@@ -651,11 +666,11 @@ export default function VirtualHearing() {
                       </motion.div>
                     )}
 
-                    {/* Participant Grid - Fixed-width sidebar prevents all card deformation */}
-                    <div className={`${presentationMode === 'split' ? 'w-[26rem] flex-shrink-0 flex flex-col gap-6 overflow-y-auto pr-2' : 'flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 overflow-y-auto content-start'} min-h-0 h-full w-full scrollbar-hide pb-24 px-2`}>
+                    {/* Participant Grid - Optimized for all screen sizes to prevent overlapping */}
+                    <div className={`${presentationMode === 'split' ? 'w-[26rem] flex-shrink-0 flex flex-col gap-6 overflow-y-auto pr-2' : 'flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-10 overflow-y-auto content-start auto-rows-min'} min-h-0 h-full w-full scrollbar-hide pb-24 px-4`}>
                       
                       {/* Local Participant Card (Equal to others) */}
-                      <div className="bg-slate-900 rounded-[2.5rem] relative overflow-hidden shadow-lg group ring-4 ring-white aspect-video w-full">
+                      <motion.div layout className="bg-slate-900 rounded-[2.5rem] relative overflow-hidden shadow-lg group ring-4 ring-white aspect-video w-full">
                         <video 
                           ref={(el) => { 
                             if (el && localStream && el.srcObject !== localStream) el.srcObject = localStream; 
@@ -673,20 +688,20 @@ export default function VirtualHearing() {
                         <div className="absolute top-5 right-5 z-20 h-8 px-3 bg-white/90 backdrop-blur-md rounded-lg flex items-center gap-2 border border-slate-200 shadow-lg">
                            <Mic size={12} className={isAudioMuted ? 'text-red-500' : 'text-emerald-600'} />
                            <div className="flex gap-0.5 items-end h-2.5">
-                              {[...Array(4)].map((_, i) => (
-                                <motion.div key={i} animate={{ height: isAudioMuted ? 4 : 4 + Math.random() * 8 }} className={`w-0.5 rounded-full ${isAudioMuted ? 'bg-red-200' : 'bg-emerald-500'}`} />
-                              ))}
+                               {[...Array(4)].map((_, i) => (
+                                 <motion.div key={i} animate={{ height: isAudioMuted ? 4 : 4 + Math.random() * 8 }} className={`w-0.5 rounded-full ${isAudioMuted ? 'bg-red-200' : 'bg-emerald-500'}`} />
+                               ))}
                            </div>
                         </div>
                         <div className="absolute bottom-5 left-5 px-4 py-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl flex items-center gap-2 z-20">
                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
                            <span className="text-[9px] font-black text-white uppercase tracking-widest">You (Host)</span>
                         </div>
-                      </div>
+                      </motion.div>
 
                       {/* Remote Participants */}
                       {participants.slice(1).map(p => (
-                        <div key={p.id} className="aspect-video bg-white border border-slate-200 rounded-[2.5rem] relative overflow-hidden shadow-sm group hover:border-emerald-600/30 transition-all flex flex-col items-center justify-center gap-4">
+                        <motion.div layout key={p.id} className="aspect-video bg-white border border-slate-200 rounded-[2.5rem] relative overflow-hidden shadow-sm group hover:border-emerald-600/30 transition-all flex flex-col items-center justify-center gap-4 w-full">
                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-4xl shadow-inner group-hover:scale-110 transition-transform">{p.avatar}</div>
                            <div className="flex flex-col items-center gap-1">
                               <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">{p.name}</span>
@@ -697,7 +712,7 @@ export default function VirtualHearing() {
                               <div className={`w-1.5 h-1.5 rounded-full ${p.status === 'online' ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
                               <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Remote</span>
                            </div>
-                        </div>
+                        </motion.div>
                       ))}
                     </div>
                   </div>

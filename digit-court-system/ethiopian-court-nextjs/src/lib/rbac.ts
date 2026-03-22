@@ -47,20 +47,20 @@ export function normalizeRoleFromUser(user: any): Role {
 
 export const ROLE_CAPABILITIES: Record<Role, { nav: NavKey[]; routes: string[] }> = {
   SYSTEM_ADMIN: {
-    nav: ['dashboard', 'users', 'logs', 'security', 'settings', 'reports', 'notifications', 'profile'],
-    routes: ['/', '/users', '/logs', '/security', '/settings', '/reports', '/notifications', '/profile']
+    nav: ['dashboard', 'users', 'logs', 'security', 'settings', 'reports', 'messages', 'notifications', 'profile', 'cases', 'hearings', 'schedule', 'documents', 'virtualHearing', 'archives'],
+    routes: ['/', '/users', '/logs', '/security', '/settings', '/reports', '/communication', '/notifications', '/profile', '/cases', '/hearings', '/schedule', '/documents', '/virtual-hearing', '/archives']
   },
   COURT_ADMIN: {
-    nav: ['dashboard', 'cases', 'hearings', 'schedule', 'reports', 'notifications', 'profile'],
-    routes: ['/', '/cases', '/hearings', '/schedule', '/reports', '/notifications', '/profile']
+    nav: ['dashboard', 'users', 'logs', 'security', 'settings', 'reports', 'messages', 'notifications', 'profile', 'cases', 'hearings', 'schedule', 'documents', 'virtualHearing', 'archives'],
+    routes: ['/', '/users', '/logs', '/security', '/settings', '/reports', '/communication', '/notifications', '/profile', '/cases', '/hearings', '/schedule', '/documents', '/virtual-hearing', '/archives']
   },
   JUDGE: {
-    nav: ['dashboard', 'cases', 'hearings', 'virtualHearing', 'documents', 'archives', 'notifications', 'profile'],
-    routes: ['/', '/cases', '/hearings', '/virtual-hearing', '/documents', '/archives', '/notifications', '/profile']
+    nav: ['dashboard', 'cases', 'hearings', 'virtualHearing', 'documents', 'messages', 'archives', 'notifications', 'profile'],
+    routes: ['/', '/cases', '/hearings', '/virtual-hearing', '/documents', '/communication', '/archives', '/notifications', '/profile']
   },
   CLERK: {
-    nav: ['dashboard', 'cases', 'documents', 'hearings', 'archives', 'notifications', 'profile'],
-    routes: ['/', '/cases', '/documents', '/hearings', '/archives', '/notifications', '/profile']
+    nav: ['dashboard', 'cases', 'documents', 'hearings', 'messages', 'archives', 'notifications', 'profile'],
+    routes: ['/', '/cases', '/documents', '/hearings', '/communication', '/archives', '/notifications', '/profile']
   },
   LAWYER: {
     nav: ['dashboard', 'cases', 'documents', 'virtualHearing', 'messages', 'archives', 'notifications', 'profile'],

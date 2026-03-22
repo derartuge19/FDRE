@@ -573,7 +573,7 @@ export default function Settings() {
                                <div className="text-4xl w-20 h-20 bg-white flex items-center justify-center rounded-3xl shadow-xl shadow-emerald-950/5">🗝️</div>
                                <div>
                                   <h4 className="text-2xl font-black tracking-tight mb-2">Multi-Factor Governance</h4>
-                                  <p className="text-emerald-800/60 font-medium">Secured with encrypted biometric telemetry</p>
+                                  <p className="text-emerald-800/60 font-medium">Secured with encrypted secure digital identity</p>
                                </div>
                             </div>
                             <button 

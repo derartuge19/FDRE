@@ -104,11 +104,19 @@ export default function AuditLogs() {
              headers: { 'Authorization': `Bearer ${token}` }
           });
           const data = await res.json();
-          if (data.success && data.data.length > 0) {
-             // Append real logs if available
+          if (data.success && data.data) {
+             setLogs(data.data.map((l: any) => ({
+                id: l.id,
+                actor: l.userId || 'System',
+                action: l.action,
+                target: l.details || 'N/A',
+                timestamp: l.timestamp,
+                severity: l.action.includes('ERROR') || l.action.includes('FAIL') ? 'high' : 'low',
+                location: 'Central Registry'
+             })));
           }
        } catch (err) {
-          console.error('Audit telemetry failure');
+          console.error('Audit telemetry failure:', err);
        }
     };
 
@@ -169,7 +177,7 @@ export default function AuditLogs() {
   if (!mounted) return null;
 
   return (
-    <RequireAccess allowedRoles={['SYSTEM_ADMIN']}>
+    <RequireAccess allowedRoles={['SYSTEM_ADMIN', 'COURT_ADMIN']}>
     <div className="min-h-screen page-bg page-text font-sans">
       <Header />
 

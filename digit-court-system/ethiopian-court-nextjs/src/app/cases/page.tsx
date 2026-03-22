@@ -65,7 +65,14 @@ export default function Cases() {
   const [cases, setCases] = useState<Case[]>([]);
   const [allCases, setAllCases] = useState<Case[]>([]);
   const [mounted, setMounted] = useState(false);
-  const [modalConfig, setModalConfig] = useState<{isOpen: boolean, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}>({
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean, 
+    title: string, 
+    message: string, 
+    type: 'info' | 'success' | 'warning' | 'error' | 'security' | 'judicial',
+    confirmLabel?: string,
+    cancelLabel?: string
+  }>({
     isOpen: false,
     title: '',
     message: '',
@@ -206,41 +213,35 @@ export default function Cases() {
         type: 'success'
       });
 
-      // 3. Final Docket Initialization (Simulated)
-      const title = "New Institutional Case Docket";
-      const newCaseId = `CIV-2026-${Math.floor(Math.random() * 900 + 100)}`;
-      
-      const newCase: Case = {
-        id: newCaseId,
-        caseNumber: newCaseId,
-        title: title,
+      // 3. Final Docket Commitment to Real Database
+      const newCaseData = {
+        title: "Institutional Dispute Registry",
         type: 'Civil',
-        status: 'pending',
         plaintiff: verifData.data.fullName,
-        defendant: 'To Be Determined',
-        judge: 'Pending Assignment',
-        filingDate: new Date().toISOString().split('T')[0],
-        lastUpdate: new Date().toISOString().split('T')[0],
-        priority: 'medium',
-        ...({ timestamp: Date.now() } as any)
+        defendant: 'ABC International',
+        priority: 'high'
       };
+
+      const caseRes = await fetch('http://localhost:5173/api/cases', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify(newCaseData)
+      });
       
-      const request = indexedDB.open('CourtRecordsDB', 2);
-      request.onsuccess = (e: any) => {
-         const db = e.target.result;
-         const tx = db.transaction(['cases'], 'readwrite');
-         const store = tx.objectStore('cases');
-         store.add(newCase);
-         tx.oncomplete = () => {
-            setCases(prev => [newCase, ...prev]);
-            setModalConfig({
-              isOpen: true,
-              title: 'Case Filed Successfully',
-              message: `Institutional docket ${newCaseId} has been indexed and committed to the CourtRecordsDB vault.`,
-              type: 'success'
-            });
-         };
-      };
+      const caseData = await caseRes.json();
+      
+      if (caseData.success) {
+        setCases(prev => [caseData.data, ...prev]);
+        setModalConfig({
+          isOpen: true,
+          title: 'Institutional Docket Committed',
+          message: `Case ${caseData.data.id} has been successfully synchronized with the Federal Judiciary Hub and committed to the PostgreSQL vault.`,
+          type: 'success'
+        });
+      }
     } catch (err) {
       setModalConfig({
         isOpen: true,
