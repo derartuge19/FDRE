@@ -2,10 +2,10 @@
   "name": "simple-court-app",
   "version": "1.0.0",
   "description": "Ethiopian Digital Court System Frontend",
-  "main": "simple-server.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node simple-server.js",
-    "dev": "node simple-server.js",
+    "start": "node server.js",
+    "dev": "node server.js",
     "migrate": "node database/migrate.js",
     "seed": "node database/seed.js"
   },
