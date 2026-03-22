@@ -2,7 +2,12 @@
 const { Pool } = require('pg');
 
 // Database configuration
-const dbConfig = {
+const dbConfig = process.env.DATABASE_URL ? {
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
+    }
+} : {
     user: process.env.DB_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
     database: process.env.DB_NAME || 'court',
@@ -10,9 +15,9 @@ const dbConfig = {
     port: process.env.DB_PORT || 5432,
     
     // Connection pool settings
-    max: 20, // Maximum number of clients in the pool
-    idleTimeoutMillis: 30000, // How long a client is allowed to remain idle
-    connectionTimeoutMillis: 2000, // How long to wait for a connection
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
     
     // SSL configuration (for production)
     ssl: process.env.NODE_ENV === 'production' ? {

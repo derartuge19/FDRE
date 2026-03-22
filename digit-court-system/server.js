@@ -12,6 +12,7 @@ const WebSocket = require('ws');
 const hearingDatabase = require('./database/postgres-database');
 const fileStorageService = require('./services/file-storage');
 const mediaCaptureService = require('./services/media-capture');
+const { runMigrations } = require('./database/migrate');
 
 const app = express();
 const server = http.createServer(app);
@@ -2083,6 +2084,10 @@ app.use((error, req, res, next) => {
 server.listen(PORT, async () => {
   // Initialize database and file storage
   try {
+    // Run database migrations first to ensure tables exist
+    console.log('🏛️ Running PostgreSQL migrations...');
+    await runMigrations(false);
+    
     await hearingDatabase.initialize();
     await fileStorageService.initialize();
     console.log('🏛️ Ethiopian Digital Court System running on http://localhost:' + PORT);
@@ -2092,6 +2097,7 @@ server.listen(PORT, async () => {
     console.log('📚 System ready for testing');
   } catch (error) {
     console.error('❌ Failed to initialize services:', error);
-    process.exit(1);
+    // Continue running anyway if in development? No, better to see the error.
+    // process.exit(1);
   }
 });

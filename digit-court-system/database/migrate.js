@@ -254,7 +254,7 @@ const migrations = [
     }
 ];
 
-async function runMigrations() {
+async function runMigrations(shouldClose = true) {
     console.log('🚀 Starting PostgreSQL migrations for Ethiopian Court System...');
     
     // Test connection first
@@ -264,7 +264,8 @@ async function runMigrations() {
         console.error('   1. PostgreSQL is installed and running');
         console.error('   2. Database "court" exists');
         console.error('   3. Connection credentials are correct');
-        process.exit(1);
+        if (shouldClose) process.exit(1);
+        throw new Error('Database connection failed');
     }
     
     try {
@@ -317,9 +318,10 @@ async function runMigrations() {
         
     } catch (error) {
         console.error('❌ Migration failed:', error);
-        process.exit(1);
+        if (shouldClose) process.exit(1);
+        throw error;
     } finally {
-        await close();
+        if (shouldClose) await close();
     }
 }
 
