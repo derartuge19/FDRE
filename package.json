@@ -2,13 +2,13 @@
   "name": "digit-court-system-root",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "postinstall": "cd digit-court-system && npm install && cd ethiopian-court-nextjs && npm install",
     "build": "cd digit-court-system/ethiopian-court-nextjs && npm run build",
     "start": "cd digit-court-system && npm start",
     "dev": "cd digit-court-system && npm run dev"
-  },
-  "engines": {
-    "node": ">=20.9.0"
   }
 }
